@@ -1,0 +1,5 @@
+dependencies {
+    implementation project(':module-core')
+    implementation 'org.springframework.boot:spring-boot-starter-web' // WebClient 사용 목적
+//    implementation 'org.springframework.ai:spring-ai-starter-vector-store-mongodb-atlas'
+}

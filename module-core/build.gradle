@@ -1,0 +1,9 @@
+dependencies {
+    // DB 설계를 객체로 매핑하기 위한 JPA와 드라이버만 깔끔하게 주입
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+}
+
+// core 모듈은 스스로 부팅되는 서버가 아니기 때문에 빌드 시 jar 파일 껍데기만 만듭니다.
+bootJar { enabled = false }
+jar { enabled = true }

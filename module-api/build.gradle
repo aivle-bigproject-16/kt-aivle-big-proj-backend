@@ -1,0 +1,5 @@
+dependencies {
+    implementation project(':module-core') // 🌟 core 모듈의 엔티티와 리포지토리를 가져다 씁니다.
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+}

@@ -1,0 +1,6 @@
+rootProject.name = 'big-project'
+
+include 'module-core'
+include 'module-api'
+include 'module-ai'
+include 'module-llm'
