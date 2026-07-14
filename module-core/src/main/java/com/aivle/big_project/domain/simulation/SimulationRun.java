@@ -21,9 +21,6 @@ public class SimulationRun {
     @JoinColumn(name = "requested_by")
     private User requestedBy;
 
-    @Column(name = "pipeline", length = 10, nullable = false)
-    private String pipeline;
-
     @Column(name = "batch_count", nullable = false)
     private Integer batchCount;
 
