@@ -4,11 +4,15 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
 @Getter
+@Builder
+@AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User {
 
@@ -29,6 +33,7 @@ public class User {
     @Column(name = "role", length = 30, nullable = false)
     private Role role;
 
+    @Builder.Default
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
