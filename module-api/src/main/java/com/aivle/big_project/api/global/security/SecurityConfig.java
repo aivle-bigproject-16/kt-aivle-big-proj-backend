@@ -1,4 +1,4 @@
-package com.aivle.big_project.api.security;
+package com.aivle.big_project.api.global.security;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -43,3 +43,4 @@ public class SecurityConfig {
         return http.build();
     }
 }
+

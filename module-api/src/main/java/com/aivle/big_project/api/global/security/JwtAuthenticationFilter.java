@@ -1,4 +1,4 @@
-package com.aivle.big_project.api.security;
+package com.aivle.big_project.api.global.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -58,3 +58,4 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 }
+

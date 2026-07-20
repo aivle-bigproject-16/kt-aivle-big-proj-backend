@@ -1,4 +1,4 @@
-package com.aivle.big_project.api.security;
+package com.aivle.big_project.api.global.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -56,3 +56,4 @@ public class JwtProvider {
         }
     }
 }
+

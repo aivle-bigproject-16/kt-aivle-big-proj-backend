@@ -1,4 +1,4 @@
-package com.aivle.big_project.api.dto;
+package com.aivle.big_project.api.domain.auth.dto;
 
 import com.aivle.big_project.domain.user.Role;
 import lombok.AllArgsConstructor;
@@ -14,3 +14,4 @@ public class UserResponse {
     private String name;
     private Role role;
 }
+

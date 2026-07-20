@@ -1,9 +1,9 @@
-package com.aivle.big_project.api.service;
+package com.aivle.big_project.api.domain.auth.service;
 
-import com.aivle.big_project.api.dto.LoginRequest;
-import com.aivle.big_project.api.dto.SignUpRequest;
-import com.aivle.big_project.api.dto.UserResponse;
-import com.aivle.big_project.api.security.JwtProvider;
+import com.aivle.big_project.api.domain.auth.dto.LoginRequest;
+import com.aivle.big_project.api.domain.auth.dto.SignUpRequest;
+import com.aivle.big_project.api.domain.auth.dto.UserResponse;
+import com.aivle.big_project.api.global.security.JwtProvider;
 import com.aivle.big_project.domain.user.Role;
 import com.aivle.big_project.domain.user.User;
 import com.aivle.big_project.domain.user.UserRepository;
@@ -70,3 +70,4 @@ public class AuthService {
                 .build();
     }
 }
+
