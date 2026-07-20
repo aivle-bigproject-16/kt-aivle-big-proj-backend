@@ -1,9 +1,9 @@
-package com.aivle.big_project.api.controller;
+package com.aivle.big_project.api.domain.auth.controller;
 
-import com.aivle.big_project.api.dto.LoginRequest;
-import com.aivle.big_project.api.dto.SignUpRequest;
-import com.aivle.big_project.api.dto.UserResponse;
-import com.aivle.big_project.api.service.AuthService;
+import com.aivle.big_project.api.domain.auth.dto.LoginRequest;
+import com.aivle.big_project.api.domain.auth.dto.SignUpRequest;
+import com.aivle.big_project.api.domain.auth.dto.UserResponse;
+import com.aivle.big_project.api.domain.auth.service.AuthService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -69,3 +69,4 @@ public class AuthController {
         return ResponseEntity.ok(userProfile);
     }
 }
+
