@@ -8,9 +8,9 @@ spring:
 #    username: postgres
 #    password: "16's_aivle_"
 #    driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres
+    url: jdbc:postgresql://aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres?sslmode=require
     username: postgres.ozcdarfrstpmwvjkcoqe
-    password: "16's_aivle_"
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   

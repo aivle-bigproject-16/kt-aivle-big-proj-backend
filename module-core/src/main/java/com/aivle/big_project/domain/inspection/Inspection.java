@@ -32,8 +32,9 @@ public class Inspection {
     @Column(name = "failure_reason", length = 100)
     private String failureReason;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "final_label", length = 20)
-    private String finalLabel;
+    private FinalLabel finalLabel;
 
     @Column(name = "analyzed_at")
     private LocalDateTime analyzedAt;

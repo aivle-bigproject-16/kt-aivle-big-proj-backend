@@ -8,9 +8,15 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "inspection_image", uniqueConstraints = {
-    @UniqueConstraint(name = "uk_inspection_image_object", columnNames = {"bucket_name", "object_key"})
-})
+@Table(
+        name = "inspection_image",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_inspection_image_object",
+                        columnNames = {"inspection_id", "bucket_name", "object_key"}
+                )
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class InspectionImage {
@@ -31,6 +37,9 @@ public class InspectionImage {
 
     @Column(name = "object_key", length = 500, nullable = false)
     private String objectKey;
+
+    @Column(name = "source_object_key", length = 500)
+    private String sourceObjectKey;
 
     @Column(name = "storage_type", length = 30, nullable = false)
     private String storageType;

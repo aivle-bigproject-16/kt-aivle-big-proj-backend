@@ -5,6 +5,5 @@ public enum InspectionBatchStatus {
     CAPTURING,
     CAPTURED,
     ANALYZING,
-    COMPLETED,
-    FAILED
+    COMPLETED
 }
