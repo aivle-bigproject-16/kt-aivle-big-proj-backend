@@ -1,10 +1,14 @@
 package com.aivle.big_project.api.domain.auth.controller;
 
+import com.aivle.big_project.api.domain.auth.dto.EmailSendRequest;
+import com.aivle.big_project.api.domain.auth.dto.EmailVerifyRequest;
 import com.aivle.big_project.api.domain.auth.dto.LoginRequest;
 import com.aivle.big_project.api.domain.auth.dto.SignUpRequest;
 import com.aivle.big_project.api.domain.auth.dto.UserResponse;
 import com.aivle.big_project.api.domain.auth.service.AuthService;
+import com.aivle.big_project.api.domain.auth.service.EmailService;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -20,9 +24,26 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final EmailService emailService;
+
+    @PostMapping("/email/send")
+    public ResponseEntity<Void> sendEmailCode(@Valid @RequestBody EmailSendRequest request) {
+        emailService.sendVerificationCode(request.email());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/email/verify")
+    public ResponseEntity<String> verifyEmailCode(@Valid @RequestBody EmailVerifyRequest request) {
+        boolean verified = emailService.verifyCode(request.email(), request.code());
+        if (verified) {
+            return ResponseEntity.ok("인증이 완료되었습니다.");
+        } else {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("인증번호가 일치하지 않거나 만료되었습니다.");
+        }
+    }
 
     @PostMapping("/signup")
-    public ResponseEntity<UserResponse> signup(@RequestBody SignUpRequest request) {
+    public ResponseEntity<UserResponse> signup(@Valid @RequestBody SignUpRequest request) {
         UserResponse response = authService.signup(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -30,7 +51,7 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<UserResponse> login(@RequestBody LoginRequest request, HttpServletResponse response) {
         String token = authService.login(request);
-        UserResponse userProfile = authService.getProfile(request.getEmail());
+        UserResponse userProfile = authService.getProfile(request.email());
 
         ResponseCookie cookie = ResponseCookie.from("access_token", token)
                 .httpOnly(true)
