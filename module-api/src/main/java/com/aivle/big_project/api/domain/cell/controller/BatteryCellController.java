@@ -3,6 +3,9 @@ package com.aivle.big_project.api.domain.cell.controller;
 import com.aivle.big_project.api.domain.cell.dto.BatteryCellDetailResponse;
 import com.aivle.big_project.api.domain.cell.dto.BatteryCellListResponse;
 import com.aivle.big_project.api.domain.cell.service.BatteryCellService;
+import com.aivle.big_project.api.global.common.ApiResponse;
+import com.aivle.big_project.api.global.common.PagedResponse;
+import org.springdoc.core.annotations.ParameterObject;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -21,13 +24,12 @@ public class BatteryCellController {
     private final BatteryCellService batteryCellService;
 
     @GetMapping
-    public ResponseEntity<Page<BatteryCellListResponse>> getBatteryCells(
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+    public ResponseEntity<ApiResponse<PagedResponse<BatteryCellListResponse>>> getBatteryCells(
+            @ParameterObject @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         log.info("배터리 목록 조회 요청 - Pageable: {}", pageable);
         try {
-            Page<BatteryCellListResponse> response = batteryCellService.getBatteryCells(pageable);
-            log.info("배터리 목록 조회 성공 - 반환된 데이터 개수: {}", response.getNumberOfElements());
-            return ResponseEntity.ok(response);
+            PagedResponse<BatteryCellListResponse> response = batteryCellService.getBatteryCells(pageable);
+            return ResponseEntity.ok(ApiResponse.success("배터리 목록 조회가 완료되었습니다.", response));
         } catch (Exception e) {
             log.error("배터리 목록 조회 실패", e);
             throw e;

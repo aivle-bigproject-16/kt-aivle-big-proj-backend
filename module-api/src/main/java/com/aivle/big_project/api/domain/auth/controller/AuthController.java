@@ -7,6 +7,8 @@ import com.aivle.big_project.api.domain.auth.dto.SignUpRequest;
 import com.aivle.big_project.api.domain.auth.dto.UserResponse;
 import com.aivle.big_project.api.domain.auth.service.AuthService;
 import com.aivle.big_project.api.domain.auth.service.EmailService;
+import com.aivle.big_project.api.domain.auth.dto.LoginResponseData;
+import com.aivle.big_project.api.global.common.ApiResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -43,13 +45,13 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<UserResponse> signup(@Valid @RequestBody SignUpRequest request) {
-        UserResponse response = authService.signup(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    public ResponseEntity<ApiResponse<Void>> signup(@Valid @RequestBody SignUpRequest request) {
+        authService.signup(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("회원가입이 완료되었습니다.", null));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<UserResponse> login(@RequestBody LoginRequest request, HttpServletResponse response) {
+    public ResponseEntity<ApiResponse<LoginResponseData>> login(@RequestBody LoginRequest request, HttpServletResponse response) {
         String token = authService.login(request);
         UserResponse userProfile = authService.getProfile(request.email());
 
@@ -63,7 +65,12 @@ public class AuthController {
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        return ResponseEntity.ok(userProfile);
+        LoginResponseData responseData = new LoginResponseData(
+                userProfile.name(),
+                userProfile.role() != null ? userProfile.role().name() : null
+        );
+
+        return ResponseEntity.ok(ApiResponse.success("로그인이 완료되었습니다.", responseData));
     }
 
     @PostMapping("/logout")
