@@ -3,11 +3,13 @@ package com.aivle.big_project.domain.inspection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import com.aivle.big_project.domain.inspection.FinalLabel;
 
 import java.time.LocalDate;
 import java.util.List;
 
 public interface InspectionRepository extends JpaRepository<Inspection, Long> {
+    List<Inspection> findByBatteryCellIdAndFinalLabelIn(Long batteryCellId, List<FinalLabel> labels);
     @Query(value = """
         SELECT label, value
         FROM (

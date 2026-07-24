@@ -37,8 +37,8 @@ public class BatteryCellController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<BatteryCellDetailResponse> getBatteryCellDetail(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<BatteryCellDetailResponse>> getBatteryCellDetail(@PathVariable Long id) {
         BatteryCellDetailResponse response = batteryCellService.getBatteryCellDetail(id);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success("배터리 상세 조회가 완료되었습니다.", response));
     }
 }
