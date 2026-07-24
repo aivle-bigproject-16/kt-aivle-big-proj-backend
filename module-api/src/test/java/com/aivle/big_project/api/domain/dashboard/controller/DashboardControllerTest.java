@@ -1,8 +1,9 @@
 package com.aivle.big_project.api.domain.dashboard.controller;
 
-import com.aivle.big_project.api.domain.dashboard.dto.DashboardGraphType;
-import com.aivle.big_project.api.domain.dashboard.dto.DashboardRequest;
-import com.aivle.big_project.api.domain.dashboard.dto.DashboardResponse;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.Request;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.Response;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.GraphData;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.GraphType;
 import com.aivle.big_project.api.domain.dashboard.service.DashboardService;
 import com.aivle.big_project.api.global.response.ApiResponse;
 import org.junit.jupiter.api.Test;
@@ -29,15 +30,15 @@ class DashboardControllerTest {
     @Test
     void 시작일이_종료일보다_뒤면_400을_반환한다() {
         // given
-        DashboardRequest request = new DashboardRequest(
+        Request request = new Request(
                 LocalDate.of(2026, 7, 14),
                 LocalDate.of(2026, 7, 22),
                 5,
-                DashboardGraphType.DAILY_TREND
+                GraphType.DAILY_TREND
         );
 
         // when
-        ResponseEntity<ApiResponse<DashboardResponse>> response =
+        ResponseEntity<ApiResponse<Response>> response =
                 dashboardController.getDashboard(request);
 
         // then

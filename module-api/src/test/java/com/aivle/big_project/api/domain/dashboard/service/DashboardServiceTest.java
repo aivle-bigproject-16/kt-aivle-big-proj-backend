@@ -1,9 +1,9 @@
 package com.aivle.big_project.api.domain.dashboard.service;
 
-import com.aivle.big_project.api.domain.dashboard.dto.DashboardGraphType;
-import com.aivle.big_project.api.domain.dashboard.dto.DashboardRequest;
-import com.aivle.big_project.api.domain.dashboard.dto.DashboardResponse;
-import com.aivle.big_project.api.domain.dashboard.dto.GraphData;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.Request;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.Response;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.GraphData;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.GraphType;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
 import com.aivle.big_project.domain.inspection.InspectionRepository;
 import org.junit.jupiter.api.Test;
@@ -36,11 +36,11 @@ class DashboardServiceTest {
     @Test
     void 날짜별_REJECT_추이를_조회한다() {
         // given: 가짜 Repository 결과를 준비
-        DashboardRequest request = new DashboardRequest(
+        Request request = new Request(
                 LocalDate.of(2026, 7, 20),
                 LocalDate.of(2026, 7, 14),
                 5,
-                DashboardGraphType.DAILY_TREND
+                GraphType.DAILY_TREND
         );
 
         List<Object[]> repositoryResult = Collections.singletonList(
@@ -57,7 +57,7 @@ class DashboardServiceTest {
         )).thenReturn(repositoryResult);
 
         // when: Service 실행
-        DashboardResponse response = dashboardService.getDashboard(request);
+        Response response = dashboardService.getDashboard(request);
 
         // then: 결과 검증
         assertThat(response.graphData())

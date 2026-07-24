@@ -1,9 +1,9 @@
 package com.aivle.big_project.api.domain.dashboard.service;
 
-import com.aivle.big_project.api.domain.dashboard.dto.DashboardGraphType;
-import com.aivle.big_project.api.domain.dashboard.dto.DashboardRequest;
-import com.aivle.big_project.api.domain.dashboard.dto.DashboardResponse;
-import com.aivle.big_project.api.domain.dashboard.dto.GraphData;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.Request;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.Response;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.GraphData;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.GraphType;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
 import com.aivle.big_project.domain.inspection.InspectionRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,17 +20,17 @@ public class DashboardService {
     private final InspectionRepository inspectionRepository;
     private final DefectResultRepository defectResultRepository;
 
-    public DashboardResponse getDashboard(DashboardRequest request){
+    public Response getDashboard(Request request){
         List<GraphData> graphData = switch (request.graphType()){
             case DAILY_TREND -> getDailyTrend(request);
             case DEFECT_TYPE -> getDefectType(request);
             case MANUFACTURE_DEFECTS -> getManufactureDefects(request);
         };
 
-        return new DashboardResponse(graphData);
+        return new Response(graphData);
     }
 
-    private List<GraphData> getDailyTrend(DashboardRequest request) {
+    private List<GraphData> getDailyTrend(Request request) {
         return inspectionRepository.findDailyRejectTrend(
                         request.startDate(),
                         request.todayDate(),
@@ -44,7 +44,7 @@ public class DashboardService {
                 .toList();
     }
 
-    private List<GraphData> getDefectType(DashboardRequest request){
+    private List<GraphData> getDefectType(Request request){
         return defectResultRepository.findDefectResultType(
                         request.startDate(),
                         request.todayDate(),
@@ -58,7 +58,7 @@ public class DashboardService {
                 .toList();
     }
 
-    private List<GraphData> getManufactureDefects(DashboardRequest request){
+    private List<GraphData> getManufactureDefects(Request request){
         return inspectionRepository.findManufacturerRejectCounts(
                         request.startDate(),
                         request.todayDate(),

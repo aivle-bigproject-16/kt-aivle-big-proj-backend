@@ -1,7 +1,7 @@
 package com.aivle.big_project.api.domain.dashboard.controller;
 
-import com.aivle.big_project.api.domain.dashboard.dto.DashboardRequest;
-import com.aivle.big_project.api.domain.dashboard.dto.DashboardResponse;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.Request;
+import com.aivle.big_project.api.domain.dashboard.dto.DashboardDto.Response;
 import com.aivle.big_project.api.domain.dashboard.service.DashboardService;
 import com.aivle.big_project.api.global.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -19,12 +19,12 @@ public class DashboardController {
     private  final DashboardService dashboardService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<DashboardResponse>> getDashboard(
-            @RequestBody DashboardRequest request
+    public ResponseEntity<ApiResponse<Response>> getDashboard(
+            @RequestBody Request request
     ){
         if (request.startDate() == null || request.todayDate() == null) {
             return ResponseEntity.badRequest().body(
-                    ApiResponse.<DashboardResponse>failure(
+                    ApiResponse.<Response>failure(
                             "INVALID_DATE",
                             "startDate와 todayDate는 필수입니다."
                     )
@@ -33,14 +33,14 @@ public class DashboardController {
 
         if (request.startDate().isAfter(request.todayDate())) {
             return ResponseEntity.badRequest().body(
-                    ApiResponse.<DashboardResponse>failure(
+                    ApiResponse.<Response>failure(
                             "INVALID_DATE_RANGE",
                             "startDate는 todayDate보다 늦을 수 없습니다."
                     )
             );
         }
 
-        DashboardResponse response = dashboardService.getDashboard(request);
+        Response response = dashboardService.getDashboard(request);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
