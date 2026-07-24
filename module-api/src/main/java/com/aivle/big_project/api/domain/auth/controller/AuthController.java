@@ -8,7 +8,7 @@ import com.aivle.big_project.api.domain.auth.dto.UserResponse;
 import com.aivle.big_project.api.domain.auth.service.AuthService;
 import com.aivle.big_project.api.domain.auth.service.EmailService;
 import com.aivle.big_project.api.domain.auth.dto.LoginResponseData;
-import com.aivle.big_project.api.global.common.ApiResponse;
+import com.aivle.big_project.api.global.response.ApiResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

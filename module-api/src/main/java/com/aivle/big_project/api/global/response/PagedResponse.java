@@ -1,4 +1,4 @@
-package com.aivle.big_project.api.global.common;
+package com.aivle.big_project.api.global.response;
 
 import org.springframework.data.domain.Page;
 import java.util.List;

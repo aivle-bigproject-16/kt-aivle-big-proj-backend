@@ -2,7 +2,7 @@ package com.aivle.big_project.api.domain.cell.service;
 
 import com.aivle.big_project.api.domain.cell.dto.BatteryCellDetailResponse;
 import com.aivle.big_project.api.domain.cell.dto.BatteryCellListResponse;
-import com.aivle.big_project.api.global.common.PagedResponse;
+import com.aivle.big_project.api.global.response.PagedResponse;
 import com.aivle.big_project.domain.cell.BatteryCell;
 import com.aivle.big_project.domain.cell.BatteryCellRepository;
 import com.aivle.big_project.domain.cell.BatteryCellWithLatestInspectionProjection;
