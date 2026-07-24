@@ -20,31 +20,38 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final EmailService emailService;
 
     @Transactional
     public UserResponse signup(SignUpRequest request) {
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+        if (!emailService.isEmailVerified(request.email())) {
+            throw new IllegalArgumentException("이메일 인증이 완료되지 않았습니다.");
+        }
+
+        if (userRepository.findByEmail(request.email()).isPresent()) {
             throw new IllegalArgumentException("이미 가입된 이메일입니다.");
         }
 
         User user = User.builder()
-                .email(request.getEmail())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .name(request.getName())
+                .email(request.email())
+                .passwordHash(passwordEncoder.encode(request.password()))
+                .name(request.name())
                 .role(Role.INSPECTOR)
                 .active(true)
                 .build();
 
         User savedUser = userRepository.save(user);
+        
+        emailService.clearVerification(request.email());
 
         return convertToResponse(savedUser);
     }
 
     public String login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다."));
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다.");
         }
 
