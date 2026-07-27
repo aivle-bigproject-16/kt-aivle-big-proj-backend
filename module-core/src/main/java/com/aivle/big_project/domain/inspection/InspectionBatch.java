@@ -52,4 +52,17 @@ public class InspectionBatch {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    public static InspectionBatch create(
+            SimulationRun simulationRun,
+            User requestedBy
+    ) {
+        InspectionBatch inspectionBatch = new InspectionBatch();
+
+        inspectionBatch.simulationRun = simulationRun;
+        inspectionBatch.requestedBy = requestedBy;
+        inspectionBatch.status = InspectionBatchStatus.REGISTERED;
+
+        return inspectionBatch;
+    }
 }
