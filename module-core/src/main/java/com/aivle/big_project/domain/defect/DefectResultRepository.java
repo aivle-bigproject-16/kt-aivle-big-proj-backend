@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 public interface DefectResultRepository extends JpaRepository<DefectResult, Long> {
+    List<DefectResult> findByInspectionIdIn(List<Long> inspectionIds);
     @Query(value = """
         SELECT i.defect_type AS label, COUNT(*) AS value
         FROM defect_result i

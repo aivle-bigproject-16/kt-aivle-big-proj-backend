@@ -1,13 +1,17 @@
 package com.aivle.big_project.api.domain.cell.dto;
 
-import com.aivle.big_project.domain.cell.BatteryCell;
+import com.aivle.big_project.domain.inspection.FinalLabel;
 import lombok.Builder;
+import com.fasterxml.jackson.annotation.JsonRawValue;
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Builder
 public record BatteryCellDetailResponse(
-        Long id,
+        Long batteryCellId,
         String cellSerialNo,
         String purchaseId,
         String productId,
@@ -15,19 +19,45 @@ public record BatteryCellDetailResponse(
         String cellType,
         LocalDate manufacturedDate,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        List<InspectionDto> inspections,
+        List<ReportDto> reports
 ) {
-    public static BatteryCellDetailResponse from(BatteryCell cell) {
-        return BatteryCellDetailResponse.builder()
-                .id(cell.getId())
-                .cellSerialNo(cell.getCellSerialNo())
-                .purchaseId(cell.getPurchaseId())
-                .productId(cell.getProductId())
-                .modelName(cell.getModelName())
-                .cellType(cell.getCellType())
-                .manufacturedDate(cell.getManufacturedDate())
-                .createdAt(cell.getCreatedAt())
-                .updatedAt(cell.getUpdatedAt())
-                .build();
-    }
+    @Builder
+    public record InspectionDto(
+            Long inspectionId,
+            FinalLabel finalLabel,
+            LocalDateTime analyzedAt,
+            List<InspectionImageDto> image,
+            List<DefectResultDto> defectResults
+    ) {}
+
+    @Builder
+    public record InspectionImageDto(
+            Long imageId,
+            String imageType,
+            String imageUrl
+    ) {}
+
+    @Builder
+    public record DefectResultDto(
+            Long defectResultId,
+            String label,
+            Long imageId,
+            String imageType,
+            String defectType,
+            String imageUrl,
+            BigDecimal confidence,
+            @JsonRawValue String bbox // JSON 문자열을 그대로 이스케이프 없이 반환
+    ) {}
+
+    @Builder
+    public record ReportDto(
+            Long reportId,
+            Long inspectionId,
+            String status,
+            String title,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {}
 }
