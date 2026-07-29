@@ -4,6 +4,8 @@ import com.aivle.big_project.domain.cell.BatteryCell;
 import com.aivle.big_project.domain.inspection.Inspection;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
@@ -13,6 +15,8 @@ import java.time.LocalDateTime;
     @UniqueConstraint(name = "uk_reports_individual_cell_version", columnNames = {"battery_cell_id", "version"})
 })
 @Getter
+@Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReportsIndividual {
 
