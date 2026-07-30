@@ -28,6 +28,7 @@ public class LlmAsyncService {
     private final ReportsDailyRepository reportsDailyRepository;
     private final ReportsIndividualRepository reportsIndividualRepository;
     private final DefectResultRepository defectResultRepository;
+    private final com.aivle.big_project.domain.inspection.InspectionRepository inspectionRepository;
     private final LlmWebClient llmWebClient;
     private final ObjectMapper objectMapper;
 
@@ -56,9 +57,41 @@ public class LlmAsyncService {
             report.markAsDispatched();
             reportsDailyRepository.saveAndFlush(report);
 
+            java.time.LocalDate targetDate = report.getReportDate();
+            java.time.LocalDate prevDate = targetDate.minusDays(1);
+
+            int totalCount = inspectionRepository.countTotalInspectedByDate(targetDate);
+            int passCount = inspectionRepository.countByFinalLabelAndDate(targetDate, "PASS");
+            int rejectCount = inspectionRepository.countByFinalLabelAndDate(targetDate, "REJECT");
+            int failedCount = inspectionRepository.countByFinalLabelAndDate(targetDate, "FAIL");
+
+            int prevTotalCount = inspectionRepository.countTotalInspectedByDate(prevDate);
+            int prevRejectCount = inspectionRepository.countByFinalLabelAndDate(prevDate, "REJECT");
+
+            List<Object[]> defectTypesRaw = defectResultRepository.findDefectResultType(targetDate, targetDate, 10);
+            List<VlmDefectCount> defects = defectTypesRaw.stream()
+                .map(row -> new VlmDefectCount(row[0].toString(), ((Number) row[1]).intValue()))
+                .toList();
+
+            VlmSummaryData summaryData = new VlmSummaryData(
+                totalCount,
+                passCount,
+                rejectCount,
+                failedCount,
+                prevTotalCount,
+                prevRejectCount,
+                defects
+            );
+
+            try {
+                report.updateSummaryJson(objectMapper.writeValueAsString(summaryData));
+            } catch(Exception e) {
+                log.warn("Failed to parse summaryJson for daily report {}", reportId);
+            }
+
             VlmDailyReportRequest request = new VlmDailyReportRequest(
-                    report.getReportDate().toString(),
-                    new VlmSummaryData(0, 0, 0, 0, 0, 0, new ArrayList<>()) // TODO: 실제 통계 데이터 매핑
+                    targetDate.toString(),
+                    summaryData
             );
 
             try {

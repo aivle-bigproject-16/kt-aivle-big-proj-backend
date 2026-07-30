@@ -76,4 +76,8 @@ public class ReportsDaily {
         this.content = content;
         this.failureReason = failureReason;
     }
+
+    public void updateSummaryJson(String summaryJson) {
+        this.summaryJson = summaryJson;
+    }
 }
