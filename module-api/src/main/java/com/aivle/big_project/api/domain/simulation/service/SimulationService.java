@@ -34,6 +34,7 @@ public class SimulationService {
     private final BatteryCellRepository batteryCellRepository;
     private final InspectionBatchRepository inspectionBatchRepository;
     private final InspectionRepository inspectionRepository;
+    private final SimulationSnapshotStore simulationSnapshotStore;
 
     /**
      * POST /sim
@@ -118,16 +119,20 @@ public class SimulationService {
             }
         }
 
-        return new SnapshotResponse(
+        SnapshotResponse snapshot = new SnapshotResponse(
                 SimulationEvent.PROGRESS,
                 simulationRun.getBatchCount(),
                 simulationRun.getBatteryCellCount(),
                 simulationRun.getCaptureSpeed(),
-                registered, // 다음 단계: 대기 셀 목록 생성
+                registered, // 첫 번째 배치 셀 목록
                 List.of(), // 다음 단계: 촬영 중/완료 셀 목록 생성
                 null,      // 다음 단계: 분석 중 셀 생성
                 List.of()  // 다음 단계: 완료 셀 목록 생성
         );
+
+        simulationSnapshotStore.save(snapshot);
+
+        return snapshot;
     }
 
 
@@ -138,22 +143,10 @@ public class SimulationService {
      */
     @Transactional(readOnly = true)
     public SnapshotResponse getSnapshot() {
-        SimulationRun simulationRun = simulationRunRepository
-                .findTopByStatusOrderByStartedAtDesc(SimulationStatus.RUNNING)
+        return simulationSnapshotStore.find()
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "진행 중인 시뮬레이션이 없습니다."
                 ));
-
-        return new SnapshotResponse(
-                SimulationEvent.PROGRESS,
-                simulationRun.getBatchCount(),
-                simulationRun.getBatteryCellCount(),
-                simulationRun.getCaptureSpeed(),
-                List.of(),
-                List.of(),
-                null,
-                List.of()
-        );
     }
 }
