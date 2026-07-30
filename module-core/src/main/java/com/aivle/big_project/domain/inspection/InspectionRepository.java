@@ -10,6 +10,10 @@ import java.util.List;
 
 public interface InspectionRepository extends JpaRepository<Inspection, Long> {
     List<Inspection> findByBatteryCellIdAndFinalLabelIn(Long batteryCellId, List<FinalLabel> labels);
+    
+    // 추가: 특정 배터리 셀의 가장 최신 특정 판정(REJECT) 검사 1건 조회
+    java.util.Optional<Inspection> findTopByBatteryCellIdAndFinalLabelOrderByCreatedAtDesc(Long batteryCellId, String finalLabel);
+    
     @Query(value = """
         SELECT label, value
         FROM (

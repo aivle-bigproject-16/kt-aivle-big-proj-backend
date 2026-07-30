@@ -13,6 +13,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.web.client.RestTemplate;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,6 +27,7 @@ public class ReportService {
     private final ReportsDailyItemRepository reportsDailyItemRepository;
     private final ReportsIndividualRepository reportsIndividualRepository;
     private final BatteryCellRepository batteryCellRepository;
+    private final com.aivle.big_project.domain.inspection.InspectionRepository inspectionRepository;
     private final DefectResultRepository defectResultRepository;
 
     public PagedResponse<DailyReportListResponse> getDailyReports(Pageable pageable) {
@@ -85,14 +88,27 @@ public class ReportService {
 
     @Transactional
     public DailyReportResponse createDailyReport(DailyReportCreateRequest request) {
-        // TODO: VLM 서버 연동 전 임시 처리 (PENDING 상태로 저장만 진행)
-        ReportsDaily newReport = ReportsDaily.builder()
-                .reportDate(request.reportDate())
-                .status(ReportStatus.PENDING)
-                .build();
-        ReportsDaily saved = reportsDailyRepository.save(newReport);
+        // 일일 리포트는 일자별 1건: 기존 데이터가 있으면 상태만 PENDING으로 변경, 없으면 새로 생성
+        ReportsDaily report = reportsDailyRepository.findByReportDate(request.reportDate())
+                .orElse(ReportsDaily.builder()
+                        .reportDate(request.reportDate())
+                        .status(ReportStatus.PENDING)
+                        .build());
         
-        // TODO: 실제 VLM 연동 로직 (비동기)은 나중에 여기에 추가됨
+        if (report.getId() != null) {
+            report.changeStatusToPending();
+        }
+        
+        ReportsDaily saved = reportsDailyRepository.save(report);
+        
+        // module-ai (LLM 워커 서버)로 생성 비동기 처리 지시
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            String aiServerUrl = "http://localhost:8081/internal/llm/reports/daily/" + saved.getId();
+            restTemplate.postForEntity(aiServerUrl, null, Void.class);
+        } catch (Exception e) {
+            System.err.println("Failed to trigger LLM generation for report " + saved.getId() + ": " + e.getMessage());
+        }
         
         return DailyReportResponse.builder()
                 .reportId(saved.getId())
@@ -106,14 +122,26 @@ public class ReportService {
         BatteryCell cell = batteryCellRepository.findById(request.batteryCellId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 배터리 셀입니다."));
 
-        // TODO: VLM 서버 연동 전 임시 처리 (PENDING 상태로 저장만 진행)
+        // 최신 REJECT 검사 조회
+        com.aivle.big_project.domain.inspection.Inspection latestReject = inspectionRepository
+                .findTopByBatteryCellIdAndFinalLabelOrderByCreatedAtDesc(cell.getId(), "REJECT")
+                .orElse(null);
+
         ReportsIndividual newReport = ReportsIndividual.builder()
                 .batteryCell(cell)
+                .representativeInspection(latestReject) // 최근 REJECT 검사 매핑 (없으면 null)
                 .status(ReportStatus.PENDING)
                 .build();
         ReportsIndividual saved = reportsIndividualRepository.save(newReport);
 
-        // TODO: 실제 VLM 연동 로직 (비동기)은 나중에 여기에 추가됨
+        // 비동기 VLM 생성 지시 (module-ai 호출)
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            String aiServerUrl = "http://localhost:8081/internal/llm/reports/individual/" + saved.getId();
+            restTemplate.postForEntity(aiServerUrl, null, Void.class);
+        } catch (Exception e) {
+            System.err.println("Failed to trigger LLM generation for individual report " + saved.getId() + ": " + e.getMessage());
+        }
         
         return IndividualReportResponse.builder()
                 .reportId(saved.getId())

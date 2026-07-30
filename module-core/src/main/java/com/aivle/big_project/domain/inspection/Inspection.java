@@ -39,6 +39,9 @@ public class Inspection {
     @Column(name = "analyzed_at")
     private LocalDateTime analyzedAt;
 
+    @Column(name = "point_groups", columnDefinition = "jsonb")
+    private String pointGroups;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
