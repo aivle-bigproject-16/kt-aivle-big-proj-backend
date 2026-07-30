@@ -10,6 +10,16 @@ import java.util.List;
 
 public interface InspectionRepository extends JpaRepository<Inspection, Long> {
     List<Inspection> findByBatteryCellIdAndFinalLabelIn(Long batteryCellId, List<FinalLabel> labels);
+    
+    // 추가: 특정 배터리 셀의 가장 최신 특정 판정(REJECT) 검사 1건 조회
+    java.util.Optional<Inspection> findTopByBatteryCellIdAndFinalLabelOrderByCreatedAtDesc(Long batteryCellId, String finalLabel);
+    
+    @Query(value = "SELECT COUNT(*) FROM inspection WHERE CAST(created_at AS date) = :date", nativeQuery = true)
+    int countTotalInspectedByDate(@Param("date") LocalDate date);
+
+    @Query(value = "SELECT COUNT(*) FROM inspection WHERE CAST(created_at AS date) = :date AND final_label = :label", nativeQuery = true)
+    int countByFinalLabelAndDate(@Param("date") LocalDate date, @Param("label") String label);
+    
     @Query(value = """
         SELECT label, value
         FROM (

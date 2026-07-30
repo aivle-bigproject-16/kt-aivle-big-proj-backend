@@ -2,6 +2,8 @@ package com.aivle.big_project.domain.report;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.LocalDate;
@@ -10,6 +12,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "reports_daily")
 @Getter
+@Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReportsDaily {
 
@@ -54,5 +58,26 @@ public class ReportsDaily {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+    
+    public void changeStatusToPending() {
+        this.status = ReportStatus.PENDING;
+        // 상태를 다시 PENDING으로 돌리므로 실패 사유나 결과값들은 일단 초기화할 수도 있지만,
+        // 기존 데이터를 덮어쓰기 위해 여기선 status만 변경함
+    }
+    
+    public void markAsDispatched() {
+        this.dispatchedAt = LocalDateTime.now();
+    }
+    
+    public void updateResult(ReportStatus status, String title, String content, String failureReason) {
+        this.status = status;
+        this.title = title;
+        this.content = content;
+        this.failureReason = failureReason;
+    }
+
+    public void updateSummaryJson(String summaryJson) {
+        this.summaryJson = summaryJson;
     }
 }

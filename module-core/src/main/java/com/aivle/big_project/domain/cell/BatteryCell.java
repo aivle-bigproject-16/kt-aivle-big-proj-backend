@@ -35,6 +35,9 @@ public class BatteryCell {
     @Column(name = "manufactured_date")
     private LocalDate manufacturedDate;
 
+    @Column(name = "cell_size", columnDefinition = "jsonb")
+    private String cellSize;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
