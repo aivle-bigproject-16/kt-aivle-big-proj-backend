@@ -22,9 +22,9 @@ public class DashboardService {
 
     public Response getDashboard(Request request){
         List<GraphData> graphData = switch (request.graphType()){
-            case DAILY_TREND -> getDailyTrend(request);
-            case DEFECT_TYPE -> getDefectType(request);
-            case MANUFACTURE_DEFECTS -> getManufactureDefects(request);
+            case DAILY_TREND -> getDailyTrend(request); //일자별 불량 추이 통계
+            case DEFECT_TYPE -> getDefectType(request); //결함 유형 별 발생 건수 통계
+            case MANUFACTURE_DEFECTS -> getManufactureDefects(request); //제조사별 reject 건수 통계
         };
 
         return new Response(graphData);

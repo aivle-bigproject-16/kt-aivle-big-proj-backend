@@ -65,4 +65,16 @@ public class InspectionBatch {
 
         return inspectionBatch;
     }
+
+    public void startCapture() {
+        this.status = InspectionBatchStatus.CAPTURING;
+    }
+
+    public void completeCapture() {
+        this.status = InspectionBatchStatus.CAPTURED;
+    }
+
+    public void startAnalysis() {
+        this.status = InspectionBatchStatus.ANALYZING;
+    }
 }

@@ -42,4 +42,7 @@ public interface InspectionRepository extends JpaRepository<Inspection, Long> {
             @Param("todayDate") LocalDate todayDate,
             @Param("size") int size
     );
+
+    //특정 배치에 속한 검사들을 ID 오름차순으로 가져와라
+    List<Inspection> findByInspectionBatchIdOrderByIdAsc(Long inspectionBatchId);
 }

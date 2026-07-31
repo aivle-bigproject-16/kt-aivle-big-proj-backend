@@ -68,4 +68,16 @@ public class Inspection {
 
         return inspection;
     }
+
+    public void startCapture() {
+        this.status = InspectionStatus.CAPTURING;
+    }
+
+    public void completeCapture() {
+        this.status = InspectionStatus.CAPTURED;
+    }
+
+    public void startAnalysis() {
+        this.status = InspectionStatus.ANALYZING;
+    }
 }
