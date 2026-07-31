@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -21,14 +22,25 @@ public class SimulationRun {
     @JoinColumn(name = "requested_by")
     private User requestedBy;
 
+    // DB: batch_count
+    // 서버가 batchSize, batteryCellCount로 계산
     @Column(name = "batch_count", nullable = false)
     private Integer batchCount;
 
+    // DTO: batchSize
+    // DB: cells_per_batch
     @Column(name = "cells_per_batch", nullable = false)
-    private Integer cellsPerBatch;
+    private Integer batchSize;
 
+    // DTO: batteryCellCount
+    // DB: battery_cell_count (새 컬럼)
+    @Column(name = "battery_cell_count", nullable = false)
+    private Integer batteryCellCount;
+
+    // DTO: captureSpeed
+    // DB: interval_ms
     @Column(name = "interval_ms", nullable = false)
-    private Integer intervalMs;
+    private Integer captureSpeed;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 20, nullable = false)
@@ -39,6 +51,30 @@ public class SimulationRun {
 
     @Column(name = "ended_at")
     private LocalDateTime endedAt;
+
+    public static SimulationRun start(
+            User requestedBy,
+            int batchSize,
+            int batteryCellCount,
+            int captureSpeed
+    ) {
+        SimulationRun simulationRun = new SimulationRun();
+
+        simulationRun.requestedBy = requestedBy;
+        simulationRun.batchSize = batchSize;
+        simulationRun.batteryCellCount = batteryCellCount;
+        simulationRun.captureSpeed = captureSpeed;
+        simulationRun.batchCount =
+                (batteryCellCount + batchSize - 1) / batchSize;
+        simulationRun.status = SimulationStatus.RUNNING;
+
+        return simulationRun;
+    }
+
+    public void complete() {
+        this.status = SimulationStatus.COMPLETED;
+        this.endedAt = LocalDateTime.now();
+    }
 
     @PrePersist
     protected void onCreate() {

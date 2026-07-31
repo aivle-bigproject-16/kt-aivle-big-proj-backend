@@ -58,4 +58,29 @@ public class Inspection {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    public static Inspection create(
+            InspectionBatch inspectionBatch,
+            BatteryCell batteryCell
+    ) {
+        Inspection inspection = new Inspection();
+
+        inspection.inspectionBatch = inspectionBatch;
+        inspection.batteryCell = batteryCell;
+        inspection.status = InspectionStatus.PENDING;
+
+        return inspection;
+    }
+
+    public void startCapture() {
+        this.status = InspectionStatus.CAPTURING;
+    }
+
+    public void completeCapture() {
+        this.status = InspectionStatus.CAPTURED;
+    }
+
+    public void startAnalysis() {
+        this.status = InspectionStatus.ANALYZING;
+    }
 }
