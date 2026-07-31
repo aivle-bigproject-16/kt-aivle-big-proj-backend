@@ -9,9 +9,9 @@ Spring Boot 기반 멀티 모듈 프로젝트이며, 프론트엔드 API, 공통
 ```text
 big-project/
 ├── module-core/   # Entity, Enum, Repository 등 공통 도메인 모듈
-├── module-api/    # React 프론트엔드와 통신하는 API 서버
+├── module-api/    # React 프론트엔드와 통신하는 API 서버 / 개별/일일 리포트 및 LLM 연동 모듈
 ├── module-ai/     # AI 추론 서버 연동 모듈
-└── module-llm/    # 개별/일일 리포트 및 LLM 연동 모듈
+X(삭제) module-llm/    # 개별/일일 리포트 및 LLM 연동 모듈
 ```
 
 ### Module Roles
