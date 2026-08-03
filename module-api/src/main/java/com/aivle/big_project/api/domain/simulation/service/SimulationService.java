@@ -1,15 +1,20 @@
 package com.aivle.big_project.api.domain.simulation.service;
 
+import com.aivle.big_project.api.domain.simulation.client.AiGatewayClient;
 import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.CellProgress;
 import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.SimulationEvent;
 import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.SnapshotResponse;
 import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.StartRequest;
+import com.aivle.big_project.api.domain.simulation.client.dto.AiServerDto;
+import com.aivle.big_project.api.domain.simulation.client.config.AiGatewayProperties;
 import com.aivle.big_project.domain.inspection.*;
 import com.aivle.big_project.domain.simulation.SimulationRun;
 import com.aivle.big_project.domain.simulation.SimulationRunRepository;
 import com.aivle.big_project.domain.cell.BatteryCell;
 import com.aivle.big_project.domain.cell.BatteryCellRepository;
 import com.aivle.big_project.domain.simulation.SimulationStatus;
+import com.aivle.big_project.domain.image.InspectionImage;
+import com.aivle.big_project.domain.image.InspectionImageRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -21,6 +26,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.time.Instant;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -33,7 +40,9 @@ public class SimulationService {
     private final InspectionRepository inspectionRepository;
     private final SimulationSnapshotStore simulationSnapshotStore;
     private final SimulationEventPublisher simulationEventPublisher;
-    private final InspectionBatchStatus inspectionBatchStatus;
+    private final InspectionImageRepository inspectionImageRepository;
+    private final AiGatewayClient aiGatewayClient;
+    private final AiGatewayProperties aiGatewayProperties;
 
     /**
      * POST /sim
@@ -149,6 +158,12 @@ public class SimulationService {
         List<Inspection> inspections =
                 inspectionRepository.findByInspectionBatchIdOrderByIdAsc(firstBatch.getId());
 
+        if (firstBatch.getStatus() != InspectionBatchStatus.REGISTERED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "등록 상태의 배치만 촬영을 시작할 수 있습니다."
+            );
+        }
         firstBatch.startCapture();
 
         inspections.forEach(Inspection::startCapture);
@@ -252,6 +267,7 @@ public class SimulationService {
             );
         }
 
+
         Inspection inspection = inspectionRepository
                 .findByInspectionBatchIdOrderByIdAsc(batchId)
                 .stream()
@@ -261,10 +277,54 @@ public class SimulationService {
                         HttpStatus.CONFLICT,
                         "분석할 촬영 완료 셀이 없습니다."
                 ));
+        String requestId = UUID.randomUUID().toString();
 
+        List<InspectionImage> images =
+                inspectionImageRepository.findByInspectionIdIn(
+                        List.of(inspection.getId())
+                );
+
+        if (images.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "분석할 이미지가 없습니다."
+            );
+        }
+
+        AiServerDto.CellAnalysisRequest aiRequest =
+                new AiServerDto.CellAnalysisRequest(
+                        requestId,
+                        batch.getId(),
+                        inspection.getId(),
+                        inspection.getBatteryCell().getId(),
+                        inspection.getBatteryCell().getCellSerialNo(),
+                        Instant.now(),
+                        aiGatewayProperties.callbackUrl(),
+                        images.stream()
+                                .map(image -> new AiServerDto.ImageRequest(
+                                        image.getId(),
+                                        image.getImageType(),
+                                        image.getBucketName(),
+                                        image.getObjectKey()
+                                ))
+                                .toList()
+                );
+
+        inspection.startAnalysis(requestId);
         batch.startAnalysis();
-        inspection.startAnalysis();
 
+        AiServerDto.AcceptedResponse accepted =
+                aiGatewayClient.requestCellAnalysis(aiRequest);
+
+        if (accepted == null
+                || !accepted.accepted()
+                || !requestId.equals(accepted.requestId())
+                || !inspection.getId().equals(accepted.inspectionId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "AI 분석 요청 접수에 실패했습니다."
+            );
+        }
         CellProgress analyze = new CellProgress(
                 inspection.getBatteryCell().getId(),
                 inspection.getId(),

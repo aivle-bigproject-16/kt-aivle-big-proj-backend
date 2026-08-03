@@ -7,6 +7,9 @@ spring:
     username: postgres.ozcdarfrstpmwvjkcoqe
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 2
+      minimum-idle: 1
 
   jpa:
     hibernate:
@@ -17,4 +20,7 @@ spring:
         format_sql: true
 
 ai-server:
-  base-url: ${AI_SERVER_URL:http://localhost:8001}
+  base-url: ${AI_SERVER_URL:http://localhost:8000}
+  internal-api-key: local-test-key
+  connect-timeout: 3s
+  read-timeout: 10s
