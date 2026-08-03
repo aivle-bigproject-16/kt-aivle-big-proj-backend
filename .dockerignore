@@ -1,0 +1,33 @@
+# 빌드 컨텍스트에서 제외. 이미지 크기와 빌드 시간을 줄이고, 캐시가 헛되이 깨지는 것을 막는다.
+
+.git
+.gitignore
+.gitattributes
+
+# 호스트의 빌드 산출물. 컨테이너 안에서 새로 빌드한다.
+.gradle
+build/
+*/build/
+bin/
+out/
+
+# 에디터·IDE
+.idea/
+.vscode/
+.settings/
+.classpath
+.project
+*.iml
+*.iws
+*.ipr
+
+# 문서
+README.md
+HELP.md
+docs/
+
+# 시크릿. 컨테이너에 들어가면 안 된다.
+.env
+.env.*
+*.pem
+*.key
