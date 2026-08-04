@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "defect_result")
@@ -39,9 +41,11 @@ public class DefectResult {
     @Column(name = "confidence", precision = 5, scale = 4)
     private BigDecimal confidence;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "bbox", columnDefinition = "jsonb")
     private String bbox;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "raw_response", columnDefinition = "jsonb")
     private String rawResponse;
 

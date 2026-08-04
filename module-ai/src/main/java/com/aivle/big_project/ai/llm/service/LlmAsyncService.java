@@ -4,6 +4,7 @@ import com.aivle.big_project.ai.llm.client.LlmWebClient;
 import com.aivle.big_project.ai.llm.dto.*;
 import com.aivle.big_project.domain.defect.DefectResult;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
+import com.aivle.big_project.domain.inspection.FinalLabel;
 import com.aivle.big_project.domain.report.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -61,12 +62,12 @@ public class LlmAsyncService {
             java.time.LocalDate prevDate = targetDate.minusDays(1);
 
             int totalCount = inspectionRepository.countTotalInspectedByDate(targetDate);
-            int passCount = inspectionRepository.countByFinalLabelAndDate(targetDate, "PASS");
-            int rejectCount = inspectionRepository.countByFinalLabelAndDate(targetDate, "REJECT");
-            int failedCount = inspectionRepository.countByFinalLabelAndDate(targetDate, "FAIL");
+            int passCount = inspectionRepository.countByFinalLabelAndDate(targetDate, FinalLabel.PASS);
+            int rejectCount = inspectionRepository.countByFinalLabelAndDate(targetDate, FinalLabel.REJECT);
+            int failedCount = inspectionRepository.countByFinalLabelAndDate(targetDate, FinalLabel.FAIL);
 
             int prevTotalCount = inspectionRepository.countTotalInspectedByDate(prevDate);
-            int prevRejectCount = inspectionRepository.countByFinalLabelAndDate(prevDate, "REJECT");
+            int prevRejectCount = inspectionRepository.countByFinalLabelAndDate(prevDate, FinalLabel.REJECT);
 
             List<Object[]> defectTypesRaw = defectResultRepository.findDefectResultType(targetDate, targetDate, 10);
             List<VlmDefectCount> defects = defectTypesRaw.stream()

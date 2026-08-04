@@ -20,4 +20,4 @@ spring:
         format_sql: true
 
 ai-server:
-  base-url: ${AI_SERVER_URL:http://localhost:8001}
+  base-url: ${AI_SERVER_URL:https://prevalent-dance-sculpture.ngrok-free.dev}

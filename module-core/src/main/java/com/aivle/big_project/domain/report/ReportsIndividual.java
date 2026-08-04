@@ -9,6 +9,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "reports_individual")
@@ -30,6 +32,7 @@ public class ReportsIndividual {
     @JoinColumn(name = "representative_inspection_id")
     private Inspection representativeInspection;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "source_inspection_ids", columnDefinition = "jsonb")
     private String sourceInspectionIds;
 

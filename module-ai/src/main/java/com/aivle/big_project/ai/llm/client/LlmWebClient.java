@@ -29,7 +29,7 @@ public class LlmWebClient {
     private String aiServerUrl;
 
     public Mono<VlmReportResponse> requestIndividualReport(VlmIndividualReportRequest request, Long reportId) {
-        String url = aiServerUrl + "/llm/reports/each";
+        String url = aiServerUrl + "/vlm/reports/individual";
         log.info("Requesting VLM for individual report. URL: {}", url);
 
         long startTime = System.currentTimeMillis();
@@ -46,7 +46,7 @@ public class LlmWebClient {
     }
 
     public Mono<VlmReportResponse> requestDailyReport(VlmDailyReportRequest request, Long reportId) {
-        String url = aiServerUrl + "/llm/reports/daily";
+        String url = aiServerUrl + "/vlm/reports/daily";
         log.info("Requesting VLM for daily report. URL: {}", url);
 
         long startTime = System.currentTimeMillis();
