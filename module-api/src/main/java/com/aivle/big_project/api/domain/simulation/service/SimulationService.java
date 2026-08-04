@@ -33,7 +33,7 @@ public class SimulationService {
     private final InspectionRepository inspectionRepository;
     private final SimulationSnapshotStore simulationSnapshotStore;
     private final SimulationEventPublisher simulationEventPublisher;
-    private final InspectionBatchStatus inspectionBatchStatus;
+//    private final InspectionBatchStatus inspectionBatchStatus;
 
     /**
      * POST /sim
