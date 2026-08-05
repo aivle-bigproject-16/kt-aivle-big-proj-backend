@@ -39,7 +39,7 @@ public class LlmAsyncService {
     @Async
     @Transactional
     public void generateDailyReportAsync(Long reportId) {
-        log.info("[Async] Starting daily report generation for ID: {}", reportId);
+//        log.info("[Async] Starting daily report generation for ID: {}", reportId);
 
         try {
             if (!semaphore.tryAcquire(5, TimeUnit.SECONDS)) {
@@ -121,7 +121,7 @@ public class LlmAsyncService {
     @Async
     @Transactional
     public void generateIndividualReportAsync(Long reportId) {
-        log.info("[Async] Starting individual report generation for ID: {}", reportId);
+//        log.info("[Async] Starting individual report generation for ID: {}", reportId);
 
         try {
             if (!semaphore.tryAcquire(5, TimeUnit.SECONDS)) {
