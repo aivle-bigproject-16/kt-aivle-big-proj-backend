@@ -90,10 +90,11 @@ public class LlmAsyncService {
                 log.warn("Failed to parse summaryJson for daily report {}", reportId);
             }
 
-            VlmDailyReportRequest request = new VlmDailyReportRequest(
+            VlmDailyData dailyData = new VlmDailyData(
                     targetDate.toString(),
                     summaryData
             );
+            VlmDailyReportRequest request = new VlmDailyReportRequest(dailyData);
 
             try {
                 VlmReportResponse response = llmWebClient.requestDailyReport(request, reportId).block();

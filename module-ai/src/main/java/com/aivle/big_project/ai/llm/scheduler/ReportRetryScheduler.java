@@ -22,8 +22,8 @@ public class ReportRetryScheduler {
     private final ReportsDailyRepository reportsDailyRepository;
     private final LlmAsyncService llmAsyncService;
 
-    // 1분마다 실행 (60000ms)
-    @Scheduled(fixedDelay = 60000)
+    // 2분마다 실행 (120000ms)
+    @Scheduled(fixedDelay = 120000)
     public void retryPendingReports() {
         // 기준 시간: 현재 시간보다 5분 전
         LocalDateTime threshold = LocalDateTime.now().minusMinutes(5);
@@ -33,7 +33,7 @@ public class ReportRetryScheduler {
         // 1. 개별 리포트 재시도
         List<ReportsIndividual> pendingIndividual = reportsIndividualRepository.findPendingReportsOlderThan(threshold);
         if (!pendingIndividual.isEmpty()) {
-            log.info("[Scheduler] Found {} zombie individual reports. Retrying...", pendingIndividual.size());
+//            log.info("[Scheduler] Found {} zombie individual reports. Retrying...", pendingIndividual.size());
             for (ReportsIndividual report : pendingIndividual) {
                 llmAsyncService.generateIndividualReportAsync(report.getId());
             }
@@ -42,7 +42,7 @@ public class ReportRetryScheduler {
         // 2. 일일 리포트 재시도
         List<ReportsDaily> pendingDaily = reportsDailyRepository.findPendingReportsOlderThan(threshold);
         if (!pendingDaily.isEmpty()) {
-            log.info("[Scheduler] Found {} zombie daily reports. Retrying...", pendingDaily.size());
+//            log.info("[Scheduler] Found {} zombie daily reports. Retrying...", pendingDaily.size());
             for (ReportsDaily report : pendingDaily) {
                 llmAsyncService.generateDailyReportAsync(report.getId());
             }
