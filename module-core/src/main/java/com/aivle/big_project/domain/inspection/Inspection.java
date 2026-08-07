@@ -42,11 +42,18 @@ public class Inspection {
     @Column(name = "point_groups", columnDefinition = "jsonb")
     private String pointGroups;
 
+    @Column(name = "ai_request_id", length = 100, unique = true)
+    private String aiRequestId;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "inspection_type", length = 20, nullable = false)
+    private InspectionType inspectionType;
 
     @PrePersist
     protected void onCreate() {
@@ -61,12 +68,14 @@ public class Inspection {
 
     public static Inspection create(
             InspectionBatch inspectionBatch,
-            BatteryCell batteryCell
+            BatteryCell batteryCell,
+            InspectionType inspectionType
     ) {
         Inspection inspection = new Inspection();
 
         inspection.inspectionBatch = inspectionBatch;
         inspection.batteryCell = batteryCell;
+        inspection.inspectionType = inspectionType;
         inspection.status = InspectionStatus.PENDING;
 
         return inspection;
@@ -80,7 +89,18 @@ public class Inspection {
         this.status = InspectionStatus.CAPTURED;
     }
 
-    public void startAnalysis() {
+    public void startAnalysis(String aiRequestId) {
         this.status = InspectionStatus.ANALYZING;
+        this.aiRequestId = aiRequestId;
+    }
+    public void completeAnalysis(
+            InspectionStatus status,
+            FinalLabel finalLabel,
+            String failureReason
+    ) {
+        this.status = status;
+        this.finalLabel = finalLabel;
+        this.failureReason = failureReason;
+        this.analyzedAt = LocalDateTime.now();
     }
 }
