@@ -21,6 +21,6 @@ spring:
 
 ai-server:
   base-url: ${AI_SERVER_URL:http://localhost:8000}
-  internal-api-key: local-test-key
+  internal-api-key: ${AI_INTERNAL_API_KEY}
   connect-timeout: 3s
   read-timeout: 10s

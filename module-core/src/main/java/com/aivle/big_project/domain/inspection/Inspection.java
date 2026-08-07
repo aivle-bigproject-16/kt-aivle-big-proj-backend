@@ -51,6 +51,10 @@ public class Inspection {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "inspection_type", length = 20, nullable = false)
+    private InspectionType inspectionType;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -64,12 +68,14 @@ public class Inspection {
 
     public static Inspection create(
             InspectionBatch inspectionBatch,
-            BatteryCell batteryCell
+            BatteryCell batteryCell,
+            InspectionType inspectionType
     ) {
         Inspection inspection = new Inspection();
 
         inspection.inspectionBatch = inspectionBatch;
         inspection.batteryCell = batteryCell;
+        inspection.inspectionType = inspectionType;
         inspection.status = InspectionStatus.PENDING;
 
         return inspection;
