@@ -24,6 +24,9 @@ public class ReportsIndividual {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "version")
+    private Integer version;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "battery_cell_id", nullable = false)
     private BatteryCell batteryCell;

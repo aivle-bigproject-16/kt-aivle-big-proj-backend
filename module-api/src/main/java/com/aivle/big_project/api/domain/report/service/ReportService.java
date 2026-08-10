@@ -130,8 +130,12 @@ public class ReportService {
                 .findTopByBatteryCellIdAndFinalLabelOrderByCreatedAtDesc(cell.getId(), FinalLabel.REJECT)
                 .orElse(null);
 
+        Integer maxVersion = reportsIndividualRepository.findMaxVersionByBatteryCellId(cell.getId());
+        int nextVersion = (maxVersion == null) ? 1 : maxVersion + 1;
+
         ReportsIndividual newReport = ReportsIndividual.builder()
                 .batteryCell(cell)
+                .version(nextVersion)
                 .representativeInspection(rejectInspection) // 최근 REJECT 검사 매핑 (없으면 null)
                 .status(ReportStatus.PENDING)
                 .build();

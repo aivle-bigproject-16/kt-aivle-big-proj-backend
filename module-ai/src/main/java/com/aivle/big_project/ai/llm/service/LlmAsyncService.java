@@ -20,6 +20,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.time.LocalDate;
+import java.util.Objects;
+import java.util.BitSet;
+import java.awt.Rectangle;
+import com.aivle.big_project.domain.image.InspectionImage;
+import com.fasterxml.jackson.databind.JsonNode;
 
 @Slf4j
 @Service
@@ -58,8 +64,8 @@ public class LlmAsyncService {
             report.markAsDispatched();
             reportsDailyRepository.saveAndFlush(report);
 
-            java.time.LocalDate targetDate = report.getReportDate();
-            java.time.LocalDate prevDate = targetDate.minusDays(1);
+            LocalDate targetDate = report.getReportDate();
+            LocalDate prevDate = targetDate.minusDays(1);
 
             int totalCount = inspectionRepository.countTotalInspectedByDate(targetDate);
             int passCount = inspectionRepository.countByFinalLabelAndDate(targetDate, FinalLabel.PASS);
@@ -156,6 +162,14 @@ public class LlmAsyncService {
             boolean hasCtData = false;
             int totalImages = 0;
 
+            double ctRatioSum = 0.0;
+            double ctRatioMax = 0.0;
+            int ctPoreCount = 0;
+            int ctSliceCount = 0;
+
+            long rgbDefectPixels = 0;
+            long rgbTotalPixels = 0;
+
             if (report.getRepresentativeInspection() != null) {
                 List<DefectResult> defects = defectResultRepository.findByInspectionIdIn(List.of(report.getRepresentativeInspection().getId()));
                 
@@ -167,16 +181,61 @@ public class LlmAsyncService {
 
                 for (List<DefectResult> group : defectsByImage.values()) {
                     String imageType = group.get(0).getImageType();
-                    if ("CT".equalsIgnoreCase(imageType)) hasCtData = true;
+                    InspectionImage img = group.get(0).getInspectionImage();
+                    long unionArea = calculateUnionArea(group);
+
+                    if ("CT".equalsIgnoreCase(imageType)) {
+                        hasCtData = true;
+                        ctSliceCount++;
+                        ctPoreCount += group.size();
+                        if (img.getWidth() != null && img.getHeight() != null) {
+                            long totalPixels = (long) img.getWidth() * img.getHeight();
+                            if (totalPixels > 0) {
+                                double ratio = (double) unionArea / totalPixels;
+                                ctRatioSum += ratio;
+                                if (ratio > ctRatioMax) {
+                                    ctRatioMax = ratio;
+                                }
+                            }
+                        }
+                    } else if ("RGB".equalsIgnoreCase(imageType)) {
+                        rgbDefectPixels += unionArea;
+                        if (img.getWidth() != null && img.getHeight() != null) {
+                            rgbTotalPixels += (long) img.getWidth() * img.getHeight();
+                        }
+                    }
                     
                     List<String> defectTypes = group.stream()
                             .map(DefectResult::getDefectType)
-                            .filter(java.util.Objects::nonNull)
+                            .filter(Objects::nonNull)
                             .distinct()
                             .toList();
                     
                     defectInfoList.add(new VlmImageDefectInfo(imageType, defectTypes));
                 }
+            }
+
+            Double ctSeverity = null;
+            if (ctSliceCount > 0) {
+                ctSeverity = ctRatioSum / ctSliceCount;
+            }
+
+            Double rgbSeverity = null;
+            if (rgbTotalPixels > 0) {
+                rgbSeverity = (double) rgbDefectPixels / rgbTotalPixels;
+            }
+
+            // Update Inspection entity
+            if (report.getRepresentativeInspection() != null) {
+                String ctMeanStr = ctSeverity != null ? String.format("%.7f", ctSeverity) : null;
+                String ctMaxStr = String.format("%.7f", ctRatioMax);
+                String ctPoreCountStr = String.valueOf(ctPoreCount);
+                String ctSliceCountStr = String.valueOf(ctSliceCount);
+                String rgbRatioStr = rgbSeverity != null ? String.format("%.7f", rgbSeverity) : null;
+
+                report.getRepresentativeInspection().updateSeverity(
+                        ctMeanStr, ctMaxStr, ctPoreCountStr, ctSliceCountStr, rgbRatioStr
+                );
             }
 
             List<Double> cellSize = null;
@@ -194,8 +253,8 @@ public class LlmAsyncService {
                     totalImages,
                     cellSize,
                     pointGroups,
-                    null, // ctSeverity 임시값
-                    null, // rgbSeverity 임시값
+                    ctSeverity,
+                    rgbSeverity,
                     defectInfoList
             );
 
@@ -219,5 +278,52 @@ public class LlmAsyncService {
         } finally {
             semaphore.release();
         }
+    }
+
+    private long calculateUnionArea(List<DefectResult> defects) {
+        if (defects == null || defects.isEmpty()) return 0;
+        List<Rectangle> rects = new ArrayList<>();
+        for (DefectResult defect : defects) {
+            String bboxJson = defect.getBbox();
+            if (bboxJson != null && !bboxJson.trim().isEmpty()) {
+                try {
+                    JsonNode node = objectMapper.readTree(bboxJson);
+                    if (node.has("x") && node.has("y") && node.has("width") && node.has("height")) {
+                        rects.add(new Rectangle(
+                            node.get("x").asInt(), node.get("y").asInt(),
+                            node.get("width").asInt(), node.get("height").asInt()
+                        ));
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to parse bbox: {}", bboxJson);
+                }
+            }
+        }
+        if (rects.isEmpty()) return 0;
+
+        int maxX = 0;
+        int maxY = 0;
+        for (Rectangle r : rects) {
+            maxX = Math.max(maxX, r.x + r.width);
+            maxY = Math.max(maxY, r.y + r.height);
+        }
+        if (maxX <= 0 || maxY <= 0) return 0;
+
+        BitSet[] grid = new BitSet[maxY];
+        for (int i = 0; i < maxY; i++) {
+            grid[i] = new BitSet(maxX);
+        }
+        for (Rectangle r : rects) {
+            int endY = Math.min(maxY, r.y + r.height);
+            int endX = Math.min(maxX, r.x + r.width);
+            for (int y = Math.max(0, r.y); y < endY; y++) {
+                grid[y].set(Math.max(0, r.x), endX);
+            }
+        }
+        long area = 0;
+        for (int i = 0; i < maxY; i++) {
+            area += grid[i].cardinality();
+        }
+        return area;
     }
 }

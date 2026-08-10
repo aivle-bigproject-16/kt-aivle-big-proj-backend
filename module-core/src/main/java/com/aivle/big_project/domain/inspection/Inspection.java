@@ -45,6 +45,30 @@ public class Inspection {
     @Column(name = "point_groups", columnDefinition = "jsonb")
     private String pointGroups;
 
+    @Column(name = "ai_request_id", length = 100, unique = true)
+    private String aiRequestId;
+
+    @Column(name = "inspection_type", length = 20)
+    private String inspectionType;
+
+    @Column(name = "ctPorosityRatioMean", length = 20)
+    private String ctPorosityRatioMean;
+
+    @Column(name = "ctPorosityRatioMax", length = 20)
+    private String ctPorosityRatioMax;
+
+    @Column(name = "ctMaxPoreRatio", length = 20)
+    private String ctMaxPoreRatio;
+
+    @Column(name = "ctPoreCount", length = 20)
+    private String ctPoreCount;
+
+    @Column(name = "ctSliceCount", length = 20)
+    private String ctSliceCount;
+
+    @Column(name = "rgbProsityRatio", length = 20)
+    private String rgbProsityRatio;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -85,5 +109,13 @@ public class Inspection {
 
     public void startAnalysis() {
         this.status = InspectionStatus.ANALYZING;
+    }
+
+    public void updateSeverity(String ctPorosityRatioMean, String ctPorosityRatioMax, String ctPoreCount, String ctSliceCount, String rgbProsityRatio) {
+        this.ctPorosityRatioMean = ctPorosityRatioMean;
+        this.ctPorosityRatioMax = ctPorosityRatioMax;
+        this.ctPoreCount = ctPoreCount;
+        this.ctSliceCount = ctSliceCount;
+        this.rgbProsityRatio = rgbProsityRatio;
     }
 }

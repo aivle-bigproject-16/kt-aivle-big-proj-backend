@@ -59,6 +59,15 @@ public class InspectionImage {
     @Column(name = "height")
     private Integer height;
 
+    @Column(name = "volume")
+    private Long volume;
+
+    @Column(name = "index")
+    private Long index;
+
+    @Column(name = "axis", length = 20)
+    private String axis;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
