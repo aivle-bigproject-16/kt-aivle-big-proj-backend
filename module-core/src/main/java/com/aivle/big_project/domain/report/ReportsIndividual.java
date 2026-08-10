@@ -9,6 +9,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "reports_individual")
@@ -22,6 +24,9 @@ public class ReportsIndividual {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "version")
+    private Integer version;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "battery_cell_id", nullable = false)
     private BatteryCell batteryCell;
@@ -30,6 +35,7 @@ public class ReportsIndividual {
     @JoinColumn(name = "representative_inspection_id")
     private Inspection representativeInspection;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "source_inspection_ids", columnDefinition = "jsonb")
     private String sourceInspectionIds;
 

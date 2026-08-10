@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "battery_cell")
@@ -35,6 +37,7 @@ public class BatteryCell {
     @Column(name = "manufactured_date")
     private LocalDate manufacturedDate;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "cell_size", columnDefinition = "jsonb")
     private String cellSize;
 

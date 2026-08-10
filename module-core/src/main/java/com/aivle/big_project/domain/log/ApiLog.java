@@ -8,6 +8,8 @@ import java.time.LocalDateTime;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "api_log")
@@ -36,9 +38,11 @@ public class ApiLog {
     @Column(name = "latency_ms")
     private Integer latencyMs;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "request_body", columnDefinition = "jsonb")
     private String requestBody;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "response_body", columnDefinition = "jsonb")
     private String responseBody;
 

@@ -12,14 +12,14 @@ import java.util.Optional;
 public interface InspectionRepository extends JpaRepository<Inspection, Long> {
     List<Inspection> findByBatteryCellIdAndFinalLabelIn(Long batteryCellId, List<FinalLabel> labels);
     
-    // 추가: 특정 배터리 셀의 가장 최신 특정 판정(REJECT) 검사 1건 조회
-    java.util.Optional<Inspection> findTopByBatteryCellIdAndFinalLabelOrderByCreatedAtDesc(Long batteryCellId, String finalLabel);
+    // 3. 배터리 셀 ID와 특정 라벨로 가장 최근 검사 조회 (LLM 개별 리포트용)
+    java.util.Optional<Inspection> findTopByBatteryCellIdAndFinalLabelOrderByCreatedAtDesc(Long batteryCellId, FinalLabel finalLabel);
     
     @Query(value = "SELECT COUNT(*) FROM inspection WHERE CAST(created_at AS date) = :date", nativeQuery = true)
     int countTotalInspectedByDate(@Param("date") LocalDate date);
 
-    @Query(value = "SELECT COUNT(*) FROM inspection WHERE CAST(created_at AS date) = :date AND final_label = :label", nativeQuery = true)
-    int countByFinalLabelAndDate(@Param("date") LocalDate date, @Param("label") String label);
+    @Query("SELECT COUNT(i) FROM Inspection i WHERE DATE(i.createdAt) = :date AND i.finalLabel = :label")
+    int countByFinalLabelAndDate(@Param("date") LocalDate date, @Param("label") FinalLabel label);
     
     @Query(value = """
         SELECT label, value

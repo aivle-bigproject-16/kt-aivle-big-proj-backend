@@ -6,6 +6,9 @@ import com.aivle.big_project.domain.cell.BatteryCell;
 import com.aivle.big_project.domain.cell.BatteryCellRepository;
 import com.aivle.big_project.domain.defect.DefectResult;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
+import com.aivle.big_project.domain.inspection.FinalLabel;
+import com.aivle.big_project.domain.inspection.Inspection;
+import com.aivle.big_project.domain.inspection.InspectionRepository;
 import com.aivle.big_project.domain.report.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -27,7 +30,7 @@ public class ReportService {
     private final ReportsDailyItemRepository reportsDailyItemRepository;
     private final ReportsIndividualRepository reportsIndividualRepository;
     private final BatteryCellRepository batteryCellRepository;
-    private final com.aivle.big_project.domain.inspection.InspectionRepository inspectionRepository;
+    private final InspectionRepository inspectionRepository;
     private final DefectResultRepository defectResultRepository;
 
     public PagedResponse<DailyReportListResponse> getDailyReports(Pageable pageable) {
@@ -123,13 +126,17 @@ public class ReportService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 배터리 셀입니다."));
 
         // 최신 REJECT 검사 조회
-        com.aivle.big_project.domain.inspection.Inspection latestReject = inspectionRepository
-                .findTopByBatteryCellIdAndFinalLabelOrderByCreatedAtDesc(cell.getId(), "REJECT")
+        Inspection rejectInspection = inspectionRepository
+                .findTopByBatteryCellIdAndFinalLabelOrderByCreatedAtDesc(cell.getId(), FinalLabel.REJECT)
                 .orElse(null);
+
+        Integer maxVersion = reportsIndividualRepository.findMaxVersionByBatteryCellId(cell.getId());
+        int nextVersion = (maxVersion == null) ? 1 : maxVersion + 1;
 
         ReportsIndividual newReport = ReportsIndividual.builder()
                 .batteryCell(cell)
-                .representativeInspection(latestReject) // 최근 REJECT 검사 매핑 (없으면 null)
+                .version(nextVersion)
+                .representativeInspection(rejectInspection) // 최근 REJECT 검사 매핑 (없으면 null)
                 .status(ReportStatus.PENDING)
                 .build();
         ReportsIndividual saved = reportsIndividualRepository.save(newReport);
