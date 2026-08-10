@@ -1,36 +1,38 @@
 package com.aivle.big_project.domain.image;
 
+import com.aivle.big_project.domain.cell.BatteryCell;
 import com.aivle.big_project.domain.inspection.Inspection;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
 @Entity
 @Table(
-        name = "inspection_image",
+        name = "battery_cell_image",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_inspection_image_object",
-                        columnNames = {"inspection_id", "bucket_name", "object_key"}
+                        name = "uk_battery_cell_image_object",
+                        columnNames = {"battery_cell_id", "bucket_name", "object_key"}
                 )
         }
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class InspectionImage {
+public class BatteryCellImage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "inspection_id", nullable = false)
-    private Inspection inspection;
+    @JoinColumn(name = "battery_cell_id", nullable = false)
+    private BatteryCell batteryCell;
 
     @Column(name = "image_type", length = 20, nullable = false)
-    private String imageType;
+    private String imageType; // CT 또는 RGB
 
     @Column(name = "bucket_name", length = 100, nullable = false)
     private String bucketName;
@@ -38,11 +40,8 @@ public class InspectionImage {
     @Column(name = "object_key", length = 500, nullable = false)
     private String objectKey;
 
-    @Column(name = "source_object_key", length = 500)
-    private String sourceObjectKey;
-
     @Column(name = "storage_type", length = 30, nullable = false)
-    private String storageType;
+    private String storageType; // S3
 
     @Column(name = "file_name", length = 255)
     private String fileName;
@@ -59,58 +58,28 @@ public class InspectionImage {
     @Column(name = "height")
     private Integer height;
 
-    @Column(name = "volume")
-    private Long volume;
-
-    @Column(name = "index")
-    private Long index;
-
-    @Column(name = "axis", length = 20)
-    private String axis;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "battery_cell_image_id")
-    private BatteryCellImage batteryCellImage;
 
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
 
-    public static InspectionImage create(
-            Inspection inspection,
+    public static BatteryCellImage create(
+            BatteryCell batteryCell,
             String imageType,
             String bucketName,
             String objectKey,
             String storageType
     ) {
-        InspectionImage image = new InspectionImage();
+        BatteryCellImage image = new BatteryCellImage();
 
-        image.inspection = inspection;
+        image.batteryCell = batteryCell;
         image.imageType = imageType;
         image.bucketName = bucketName;
         image.objectKey = objectKey;
         image.storageType = storageType;
-
-        return image;
-    }
-
-    public static InspectionImage createFromSource(
-            Inspection inspection,
-            BatteryCellImage sourceImage
-    ) {
-        InspectionImage image = new InspectionImage();
-
-        image.inspection = inspection;
-        image.batteryCellImage = sourceImage;
-        image.imageType = sourceImage.getImageType();
-        image.bucketName = sourceImage.getBucketName();
-        image.objectKey = sourceImage.getObjectKey();
-        image.sourceObjectKey = sourceImage.getObjectKey();
-        image.storageType = sourceImage.getStorageType();
 
         return image;
     }

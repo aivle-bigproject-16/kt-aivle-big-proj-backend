@@ -2,6 +2,7 @@ package com.aivle.big_project.api.domain.simulation.dto;
 
 import com.aivle.big_project.domain.inspection.FinalLabel;
 import com.aivle.big_project.domain.inspection.InspectionBatchStatus;
+import com.aivle.big_project.domain.inspection.InspectionType;
 import jakarta.validation.constraints.Positive;
 
 import java.util.List;
@@ -44,6 +45,7 @@ public final class SimulationDto {
             Long batteryCellId,
             Long inspectionId,
             Long batchId,
+            InspectionType inspectionType,
             InspectionBatchStatus status,
             FinalLabel finalLabel
     ) {

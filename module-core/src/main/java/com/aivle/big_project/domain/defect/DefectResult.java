@@ -65,4 +65,30 @@ public class DefectResult {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
+
+    public static DefectResult create(
+            Inspection inspection,
+            InspectionImage inspectionImage,
+            String imageType,
+            String label,
+            String defectType,
+            BigDecimal confidence,
+            String bbox,
+            String rawResponse,
+            Integer latencyMs
+    ) {
+        DefectResult result = new DefectResult();
+
+        result.inspection = inspection;
+        result.inspectionImage = inspectionImage;
+        result.imageType = imageType;
+        result.label = label;
+        result.defectType = defectType;
+        result.confidence = confidence;
+        result.bbox = bbox;
+        result.rawResponse = rawResponse;
+        result.latencyMs = latencyMs;
+
+        return result;
+    }
 }

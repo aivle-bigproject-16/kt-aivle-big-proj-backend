@@ -5,5 +5,6 @@ public enum InspectionStatus {
     CAPTURING,
     CAPTURED,
     ANALYZING,
-    COMPLETED
+    COMPLETED,
+    FAILED
 }

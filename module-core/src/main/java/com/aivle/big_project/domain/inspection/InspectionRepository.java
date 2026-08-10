@@ -7,6 +7,7 @@ import com.aivle.big_project.domain.inspection.FinalLabel;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface InspectionRepository extends JpaRepository<Inspection, Long> {
     List<Inspection> findByBatteryCellIdAndFinalLabelIn(Long batteryCellId, List<FinalLabel> labels);
@@ -55,6 +56,33 @@ public interface InspectionRepository extends JpaRepository<Inspection, Long> {
             @Param("size") int size
     );
 
+    //이 배치에 PENDING, CAPTURING, CAPTURED, ANALYZING 상태가 하나라도 남아 있는가?
+    boolean existsByInspectionBatchIdAndStatusIn(
+            Long inspectionBatchId,
+            List<InspectionStatus> statuses
+    );
+
+    //해당 SimulationRun 전체에서 captured inspection 중 ID가 가장 작은 한건 조회
+    Optional<Inspection>
+    findFirstByInspectionBatchSimulationRunIdAndStatusOrderByIdAsc(
+            Long simulationRunId,
+            InspectionStatus status
+    );
+
+    //해당 simulationRun 전체에서 analyzing inspection이 이미 있는지 확인
+    boolean existsByInspectionBatchSimulationRunIdAndStatus(
+            Long simulationRunId,
+            InspectionStatus status
+    );
+
+    //해당 SimulationRun에 PENDING / CAPTURING / CAPTURED / ANALYZING 상태의 Inspection이 하나라도 남아 있는가?
+    boolean existsByInspectionBatchSimulationRunIdAndStatusIn(
+            Long simulationRunId,
+            List<InspectionStatus> statuses
+    );
+
     //특정 배치에 속한 검사들을 ID 오름차순으로 가져와라
     List<Inspection> findByInspectionBatchIdOrderByIdAsc(Long inspectionBatchId);
+
+    Optional<Inspection> findByAiRequestId(String aiRequestId);
 }

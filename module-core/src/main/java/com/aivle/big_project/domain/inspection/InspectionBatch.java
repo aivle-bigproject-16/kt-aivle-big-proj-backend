@@ -77,4 +77,8 @@ public class InspectionBatch {
     public void startAnalysis() {
         this.status = InspectionBatchStatus.ANALYZING;
     }
+
+    public void complete() {
+        this.status = InspectionBatchStatus.COMPLETED;
+    }
 }

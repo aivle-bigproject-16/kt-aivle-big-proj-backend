@@ -13,7 +13,7 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 5
+      maximum-pool-size: 3
       minimum-idle: 1
 
   
@@ -45,3 +45,11 @@ spring:
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
+
+ai-gateway:
+  base-url: ${AI_GATEWAY_URL:http://localhost:8081}
+  internal-api-key: ${AI_INTERNAL_API_KEY}
+  connect-timeout: 3s
+  read-timeout: 10s
+
+  callback-url: ${BACKEND_CALLBACK_URL:http://localhost:8080/internal/ai/callbacks/cell}

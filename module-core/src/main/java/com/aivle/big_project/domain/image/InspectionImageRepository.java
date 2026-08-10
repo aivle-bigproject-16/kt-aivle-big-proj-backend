@@ -8,4 +8,9 @@ import java.util.List;
 @Repository
 public interface InspectionImageRepository extends JpaRepository<InspectionImage, Long> {
     List<InspectionImage> findByInspectionIdIn(List<Long> inspectionIds);
+
+    boolean existsByInspectionIdAndBatteryCellImageId(
+            Long inspectionId,
+            Long batteryCellImageId
+    );
 }
