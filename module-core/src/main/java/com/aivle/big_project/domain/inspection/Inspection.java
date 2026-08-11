@@ -5,6 +5,9 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -39,6 +42,7 @@ public class Inspection {
     @Column(name = "analyzed_at")
     private LocalDateTime analyzedAt;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "point_groups", columnDefinition = "jsonb")
     private String pointGroups;
 

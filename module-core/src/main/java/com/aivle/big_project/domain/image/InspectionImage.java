@@ -12,8 +12,8 @@ import java.time.LocalDateTime;
         name = "inspection_image",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_inspection_image_object",
-                        columnNames = {"inspection_id", "bucket_name", "object_key"}
+                        name = "uk_inspection_image_source",
+                        columnNames = {"inspection_id", "battery_cell_image_id"}
                 )
         }
 )

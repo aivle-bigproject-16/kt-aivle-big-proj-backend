@@ -2,6 +2,7 @@ package com.aivle.big_project.api.domain.simulation.dto;
 
 import com.aivle.big_project.domain.inspection.FinalLabel;
 import com.aivle.big_project.domain.inspection.InspectionBatchStatus;
+import com.aivle.big_project.domain.inspection.InspectionStatus;
 import com.aivle.big_project.domain.inspection.InspectionType;
 import jakarta.validation.constraints.Positive;
 
@@ -33,7 +34,7 @@ public final class SimulationDto {
             int captureSpeed,
             List<CellProgress> registered,
             List<CellProgress> capture,
-            CellProgress analyze,
+            AnalysisProgress analyze,
             List<CellProgress> completed
     ) {
     }
@@ -43,10 +44,21 @@ public final class SimulationDto {
      */
     public record CellProgress(
             Long batteryCellId,
+            Long batchId,
+            InspectionBatchStatus status,
+            FinalLabel finalLabel
+    ) {
+    }
+
+    /**
+     * 각 배터리 셀과 inspection의 현재 검사 진행 상태
+     */
+    public record AnalysisProgress(
+            Long batteryCellId,
             Long inspectionId,
             Long batchId,
             InspectionType inspectionType,
-            InspectionBatchStatus status,
+            InspectionStatus status,
             FinalLabel finalLabel
     ) {
     }

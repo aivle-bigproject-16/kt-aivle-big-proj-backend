@@ -1,6 +1,7 @@
 package com.aivle.big_project.api.domain.simulation.service;
 
 import com.aivle.big_project.api.domain.simulation.client.AiGatewayClient;
+import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.AnalysisProgress;
 import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.CellProgress;
 import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.SimulationEvent;
 import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.SnapshotResponse;
@@ -26,11 +27,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
-import java.util.ArrayList;
+import java.util.*;
 import java.time.Instant;
-import java.util.UUID;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -126,24 +124,12 @@ public class SimulationService {
                 inspectionRepository.save(ctInspection);
                 inspectionRepository.save(rgbInspection);
 
-                if (startIndex == 0) {
-                    registered.add(new CellProgress(
-                            batteryCell.getId(),
-                            ctInspection.getId(),
-                            inspectionBatch.getId(),
-                            ctInspection.getInspectionType(),
-                            inspectionBatch.getStatus(),
-                            null
-                    ));
-                    registered.add(new CellProgress(
-                            batteryCell.getId(),
-                            rgbInspection.getId(),
-                            inspectionBatch.getId(),
-                            rgbInspection.getInspectionType(),
-                            inspectionBatch.getStatus(),
-                            null
-                    ));
-                }
+                registered.add(new CellProgress(
+                        batteryCell.getId(),
+                        inspectionBatch.getId(),
+                        InspectionBatchStatus.REGISTERED,
+                        null
+                ));
             }
         }
 
@@ -194,26 +180,40 @@ public class SimulationService {
 
         inspections.forEach(Inspection::startCapture);
 
-        List<CellProgress> capture = inspections.stream()
-                .map(inspection -> new CellProgress(
-                        inspection.getBatteryCell().getId(),
-                        inspection.getId(),
-                        batch.getId(),
-                        inspection.getInspectionType(),
-                        InspectionBatchStatus.CAPTURING,
-                        inspection.getFinalLabel()
-                ))
-                .toList();
+
+
+        SimulationRun simulationRun = batch.getSimulationRun();
+
+        // 이전 AI 분석·완료 정보가 지워지지 않게 현재 스냅샷을 유지
+        SnapshotResponse current = simulationSnapshotStore.find()
+                .orElseThrow();
+
+        List<CellProgress> batchCapture = toCellProgresses(
+                inspections,
+                InspectionBatchStatus.CAPTURING
+        );
+
+
+        List<CellProgress> capture = replaceCaptureBatch(
+                current.capture(),
+                batchCapture
+        );
+
+        List<CellProgress> registered = removeRegisteredBatch(
+                current.registered(),
+                batchId
+        );
+
 
         SnapshotResponse snapshot = new SnapshotResponse(
                 SimulationEvent.PROGRESS,
-                batch.getSimulationRun().getBatchCount(),
-                batch.getSimulationRun().getBatteryCellCount(),
-                batch.getSimulationRun().getCaptureSpeed(),
-                List.of(),
+                simulationRun.getBatchCount(),
+                simulationRun.getBatteryCellCount(),
+                simulationRun.getCaptureSpeed(),
+                registered,
                 capture,
-                null,
-                List.of()
+                current.analyze(),
+                current.completed()
         );
 
         publishSnapshot(snapshot);
@@ -248,26 +248,30 @@ public class SimulationService {
 
         SimulationRun simulationRun = batch.getSimulationRun();
 
-        List<CellProgress> capture = inspections.stream()
-                .map(inspection -> new CellProgress(
-                        inspection.getBatteryCell().getId(),
-                        inspection.getId(),
-                        batch.getId(),
-                        inspection.getInspectionType(),
-                        InspectionBatchStatus.CAPTURED,
-                        inspection.getFinalLabel()
-                ))
-                .toList();
+        //프론트에는 cell 단위로 전달
+        List<CellProgress> batchCapture = toCellProgresses(
+                inspections,
+                InspectionBatchStatus.CAPTURED
+        );
+
+        // 이전 AI 분석·완료 정보가 지워지지 않게 현재 스냅샷을 유지
+        SnapshotResponse current = simulationSnapshotStore.find()
+                .orElseThrow();
+
+        List<CellProgress> capture = replaceCaptureBatch(
+                current.capture(),
+                batchCapture
+        );
 
         SnapshotResponse snapshot = new SnapshotResponse(
                 SimulationEvent.PROGRESS,
                 simulationRun.getBatchCount(),
                 simulationRun.getBatteryCellCount(),
                 simulationRun.getCaptureSpeed(),
-                List.of(),
+                current.registered(),
                 capture,
-                null,
-                List.of()
+                current.analyze(),
+                current.completed()
         );
 
         publishSnapshot(snapshot);
@@ -280,7 +284,7 @@ public class SimulationService {
      * 분석 시작
      * Captured -> Analyzing
      */
-    public Optional<CellProgress> startNextAnalysis(Long simulationRunId) {
+    public Optional<AnalysisProgress> startNextAnalysis(Long simulationRunId) {
         boolean aiIsBusy =
                 inspectionRepository
                         .existsByInspectionBatchSimulationRunIdAndStatus(
@@ -356,29 +360,35 @@ public class SimulationService {
             );
         }
 
-        CellProgress analyze = new CellProgress(
+        AnalysisProgress analyze = new AnalysisProgress(
                 inspection.getBatteryCell().getId(),
                 inspection.getId(),
                 batch.getId(),
                 inspection.getInspectionType(),
-                InspectionBatchStatus.ANALYZING,
+                InspectionStatus.ANALYZING,
                 null
         );
 
         SimulationRun simulationRun = batch.getSimulationRun();
 
         SnapshotResponse current = simulationSnapshotStore.find()
-                .orElse(null);
+                .orElseThrow();
+
+        List<CellProgress> capture = removeCaptureCell(
+                current.capture(),
+                inspection.getBatteryCell().getId(),
+                batch.getId()
+        );
 
         SnapshotResponse snapshot = new SnapshotResponse(
                 SimulationEvent.PROGRESS,
                 simulationRun.getBatchCount(),
                 simulationRun.getBatteryCellCount(),
                 simulationRun.getCaptureSpeed(),
-                current == null ? List.of() : current.registered(),
-                current == null ? List.of() : current.capture(),
+                current.registered(),
+                capture,
                 analyze,
-                current == null ? List.of() : current.completed()
+                current.completed()
         );
 
         publishSnapshot(snapshot);
@@ -406,5 +416,78 @@ public class SimulationService {
     private void publishSnapshot(SnapshotResponse snapshot) {
         simulationSnapshotStore.save(snapshot);
         simulationEventPublisher.publish(snapshot);
+    }
+
+    /**
+     * cell 단위 변환 보조 메서드
+     * cell 단위로 진행되는 capture를 inspection단위로 변경
+     */
+    private List<CellProgress> toCellProgresses(
+            List<Inspection> inspections,
+            InspectionBatchStatus status
+    ) {
+        Map<Long, Inspection> uniqueCells = new LinkedHashMap<>();
+
+        for (Inspection inspection : inspections) {
+            uniqueCells.putIfAbsent(
+                    inspection.getBatteryCell().getId(),
+                    inspection
+            );
+        }
+
+        return uniqueCells.values()
+                .stream()
+                .map(inspection -> new CellProgress(
+                        inspection.getBatteryCell().getId(),
+                        inspection.getInspectionBatch().getId(),
+                        status,
+                        inspection.getFinalLabel()
+                ))
+                .toList();
+    }
+
+    private List<CellProgress> removeRegisteredBatch(
+            List<CellProgress> registered,
+            Long batchId
+    ) {
+        return registered.stream()
+                .filter(progress -> !progress.batchId().equals(batchId))
+                .toList();
+    }
+
+    private List<CellProgress> replaceCaptureBatch(
+            List<CellProgress> currentCapture,
+            List<CellProgress> changedBatchCells
+    ) {
+        if (changedBatchCells.isEmpty()) {
+            return currentCapture;
+        }
+
+        Long batchId = changedBatchCells.get(0).batchId();
+
+        List<CellProgress> result = new ArrayList<>(currentCapture);
+
+        // 같은 배치의 이전 상태만 제거
+        result.removeIf(progress -> progress.batchId().equals(batchId));
+
+        // CAPTURING 또는 CAPTURED로 바뀐 해당 배치 셀 추가
+        result.addAll(changedBatchCells);
+
+        return result;
+    }
+
+    private List<CellProgress> removeCaptureCell(
+            List<CellProgress> capture,
+            Long batteryCellId,
+            Long batchId
+    ) {
+        return capture.stream()
+                .filter(progress ->
+                        !(
+                                progress.batteryCellId().equals(batteryCellId)
+                                        && progress.batchId().equals(batchId)
+                        )
+                )
+                .toList();
     }
 }
