@@ -67,6 +67,9 @@ public class ReportService {
                             .imageType(d.getImageType())
                             .imageId(d.getInspectionImage() != null ? d.getInspectionImage().getId() : null)
                             .imgUrl(d.getInspectionImage() != null ? d.getInspectionImage().getObjectKey() : "")
+                            .volume(d.getInspectionImage() != null ? d.getInspectionImage().getVolume() : null)
+                            .index(d.getInspectionImage() != null ? d.getInspectionImage().getIndex() : null)
+                            .axis(d.getInspectionImage() != null ? d.getInspectionImage().getAxis() : null)
                             .bbox(d.getBbox())
                             .build())
                     .toList();
@@ -78,6 +81,9 @@ public class ReportService {
                             .imageType(d.getImageType())
                             .imageId(d.getInspectionImage() != null ? d.getInspectionImage().getId() : null)
                             .imgUrl(d.getInspectionImage() != null ? d.getInspectionImage().getObjectKey() : "")
+                            .volume(d.getInspectionImage() != null ? d.getInspectionImage().getVolume() : null)
+                            .index(d.getInspectionImage() != null ? d.getInspectionImage().getIndex() : null)
+                            .axis(d.getInspectionImage() != null ? d.getInspectionImage().getAxis() : null)
                             .bbox(d.getBbox())
                             .build())
                     .toList();

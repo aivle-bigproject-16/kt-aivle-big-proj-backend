@@ -68,7 +68,9 @@ public final class AiServerDto {
             JsonNode rawResponse,
             Integer latencyMs,
             String errorCode,
-            String errorMessage
+            String errorMessage,
+            String failType,
+            String description
     ) {
     }
 
