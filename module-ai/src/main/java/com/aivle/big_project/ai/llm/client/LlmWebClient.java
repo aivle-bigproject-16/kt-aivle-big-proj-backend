@@ -25,11 +25,11 @@ public class LlmWebClient {
     private final ApiLogRepository apiLogRepository;
     private final ObjectMapper objectMapper;
 
-    @Value("${ai-server.base-url}")
-    private String aiServerUrl;
+    @Value("${vlm.base-url}")
+    private String vlmServerUrl;
 
     public Mono<VlmReportResponse> requestIndividualReport(VlmIndividualReportRequest request, Long reportId) {
-        String url = aiServerUrl + "/vlm/reports/individual";
+        String url = vlmServerUrl + "/vlm/reports/individual";
         log.info("Requesting VLM for individual report. URL: {}", url);
 
         long startTime = System.currentTimeMillis();
@@ -46,7 +46,7 @@ public class LlmWebClient {
     }
 
     public Mono<VlmReportResponse> requestDailyReport(VlmDailyReportRequest request, Long reportId) {
-        String url = aiServerUrl + "/vlm/reports/daily";
+        String url = vlmServerUrl + "/vlm/reports/daily";
         log.info("Requesting VLM for daily report. URL: {}", url);
 
         long startTime = System.currentTimeMillis();
