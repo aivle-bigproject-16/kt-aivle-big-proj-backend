@@ -4,7 +4,9 @@ import com.aivle.big_project.api.domain.simulation.event.InspectionAnalysisCompl
 import com.aivle.big_project.api.domain.simulation.event.SimulationStartedEvent;
 import com.aivle.big_project.domain.inspection.InspectionBatch;
 import com.aivle.big_project.domain.inspection.InspectionBatchRepository;
+import com.aivle.big_project.api.domain.simulation.event.InspectionRecaptureRequestedEvent;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
@@ -14,6 +16,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import java.time.Instant;
 import java.util.List;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class SimulationFlowOrchestrator {
@@ -56,6 +59,48 @@ public class SimulationFlowOrchestrator {
                         event.simulationRunId()
                 ),
                 Instant.now()
+        );
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleInspectionRecaptureRequested(
+            InspectionRecaptureRequestedEvent event
+    ) {
+        simulationTaskScheduler.schedule(
+                () -> {
+                    try {
+                        log.info(
+                                "재촬영 시작. inspectionId={}, runId={}",
+                                event.inspectionId(),
+                                event.simulationRunId()
+                        );
+
+                        simulationCaptureService.recapture(
+                                event.inspectionId()
+                        );
+
+                        simulationService.completeInspectionRecapture(
+                                event.inspectionId()
+                        );
+
+                        log.info(
+                                "재촬영 완료. inspectionId={}",
+                                event.inspectionId()
+                        );
+
+                        simulationService.startNextAnalysis(
+                                event.simulationRunId()
+                        );
+                    } catch (Exception exception) {
+                        log.error(
+                                "재촬영 처리 실패. inspectionId={}, runId={}",
+                                event.inspectionId(),
+                                event.simulationRunId(),
+                                exception
+                        );
+                    }
+                },
+                Instant.now().plusSeconds(event.captureSpeed())
         );
     }
 

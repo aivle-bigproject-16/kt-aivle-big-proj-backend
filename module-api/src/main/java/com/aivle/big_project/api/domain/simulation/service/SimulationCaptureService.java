@@ -4,11 +4,7 @@ import com.aivle.big_project.domain.image.BatteryCellImage;
 import com.aivle.big_project.domain.image.BatteryCellImageRepository;
 import com.aivle.big_project.domain.image.InspectionImage;
 import com.aivle.big_project.domain.image.InspectionImageRepository;
-import com.aivle.big_project.domain.inspection.Inspection;
-import com.aivle.big_project.domain.inspection.InspectionBatch;
-import com.aivle.big_project.domain.inspection.InspectionBatchRepository;
-import com.aivle.big_project.domain.inspection.InspectionBatchStatus;
-import com.aivle.big_project.domain.inspection.InspectionRepository;
+import com.aivle.big_project.domain.inspection.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -52,6 +48,7 @@ public class SimulationCaptureService {
 
     private void createInspectionImagesFromSource(Inspection inspection) {
         String imageType = inspection.getInspectionType().name();
+        int attemptNo = inspection.currentAttemptNo();
 
         List<BatteryCellImage> sourceImages =
                 batteryCellImageRepository
@@ -74,9 +71,10 @@ public class SimulationCaptureService {
         for (BatteryCellImage sourceImage : sourceImages) {
             boolean alreadyLinked =
                     inspectionImageRepository
-                            .existsByInspectionIdAndBatteryCellImageId(
+                            .existsByInspectionIdAndBatteryCellImageIdAndAttemptNo(
                                     inspection.getId(),
-                                    sourceImage.getId()
+                                    sourceImage.getId(),
+                                    attemptNo
                             );
 
             if (alreadyLinked) {
@@ -86,7 +84,8 @@ public class SimulationCaptureService {
             InspectionImage inspectionImage =
                     InspectionImage.createFromSource(
                             inspection,
-                            sourceImage
+                            sourceImage,
+                            attemptNo
                     );
 
             inspectionImageRepository.save(inspectionImage);
@@ -106,5 +105,22 @@ public class SimulationCaptureService {
                         inspectionId,
                         imageType.toLowerCase(Locale.ROOT)
                 );
+    }
+
+    public void recapture(Long inspectionId) {
+        Inspection inspection = inspectionRepository.findById(inspectionId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "재촬영할 검사를 찾을 수 없습니다."
+                ));
+
+        if (inspection.getStatus() != InspectionStatus.CAPTURING) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "CAPTURING 상태의 검사만 재촬영할 수 있습니다."
+            );
+        }
+
+        createInspectionImagesFromSource(inspection);
     }
 }

@@ -52,6 +52,7 @@ public final class AiServerDto {
             String cellSerialNo,
             String cellStatus,
             String finalLabel,
+            String failureType,   // 추가
             String failureReason,
             BigDecimal confidence,
             Instant completedAt,

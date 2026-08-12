@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import threading
 import time
 from datetime import datetime, timezone
@@ -11,6 +12,7 @@ HOST = "localhost"
 PORT = 8000
 API_KEY = os.getenv("AI_INTERNAL_API_KEY", "local-test-key")
 ANALYSIS_DELAY_SECONDS = 2
+FAILURE_RATE = 0.05
 
 
 def utc_now():
@@ -20,6 +22,38 @@ def utc_now():
 def send_callback(request_body):
     time.sleep(ANALYSIS_DELAY_SECONDS)
 
+    failed = random.random() < FAILURE_RATE
+
+    if failed:
+        capture_failure = random.random() < 0.5
+        failure_type = "CAPTURE" if capture_failure else "AI"
+        failure_reason = (
+            "IMAGE_BLUR"
+            if capture_failure
+            else "MODEL_INFERENCE_ERROR"
+        )
+
+        callback_body = {
+            "requestId": request_body["requestId"],
+            "batchId": request_body["batchId"],
+            "inspectionId": request_body["inspectionId"],
+            "batteryCellId": request_body["batteryCellId"],
+            "cellSerialNo": request_body["cellSerialNo"],
+            "cellStatus": "FAILED",
+            "finalLabel": None,
+            "failureType": failure_type,
+            "failureReason": failure_reason,
+            "confidence": None,
+            "completedAt": utc_now(),
+            "imageResults": []
+        }
+    else:
+        callback_body = build_success_callback(request_body)
+
+    send_callback_request(request_body["callbackUrl"], callback_body)
+
+
+def build_success_callback(request_body):
     image_results = []
 
     for image in request_body["images"]:
@@ -38,7 +72,7 @@ def send_callback(request_body):
             "errorMessage": None
         })
 
-    callback_body = {
+    return {
         "requestId": request_body["requestId"],
         "batchId": request_body["batchId"],
         "inspectionId": request_body["inspectionId"],
@@ -46,16 +80,19 @@ def send_callback(request_body):
         "cellSerialNo": request_body["cellSerialNo"],
         "cellStatus": "COMPLETED",
         "finalLabel": "PASS",
+        "failureType": None,
         "failureReason": None,
         "confidence": 0.99,
         "completedAt": utc_now(),
         "imageResults": image_results
     }
 
+
+def send_callback_request(callback_url, callback_body):
     data = json.dumps(callback_body).encode("utf-8")
 
     callback_request = Request(
-        request_body["callbackUrl"],
+        callback_url,
         data=data,
         method="POST",
         headers={
