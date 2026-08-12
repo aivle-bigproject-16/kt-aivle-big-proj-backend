@@ -85,4 +85,13 @@ public interface InspectionRepository extends JpaRepository<Inspection, Long> {
     List<Inspection> findByInspectionBatchIdOrderByIdAsc(Long inspectionBatchId);
 
     Optional<Inspection> findByAiRequestId(String aiRequestId);
+
+    List<Inspection> findByInspectionBatchIdAndBatteryCellIdOrderByIdAsc(
+            Long inspectionBatchId,
+            Long batteryCellId
+    );
+
+    List<Inspection> findByInspectionBatchSimulationRunIdOrderByIdAsc(
+            Long simulationRunId
+    );
 }

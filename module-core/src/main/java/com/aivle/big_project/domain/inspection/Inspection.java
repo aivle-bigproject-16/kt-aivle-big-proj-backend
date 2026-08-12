@@ -5,6 +5,9 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDateTime;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -47,8 +50,6 @@ public class Inspection {
 
     @Column(name = "ai_request_id", length = 100, unique = true)
     private String aiRequestId;
-
-
 
     @Column(name = "ctPorosityRatioMean", length = 20)
     private String ctPorosityRatioMean;

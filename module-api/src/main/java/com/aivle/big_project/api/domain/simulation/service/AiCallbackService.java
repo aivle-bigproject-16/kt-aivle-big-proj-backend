@@ -22,6 +22,7 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -84,9 +85,12 @@ public class AiCallbackService {
         boolean simulationCompleted =
                 completeSimulationRunIfFinished(simulationRun);
 
+        Optional<CellProgress> completedCell =
+                completeCellIfFinished(inspection);
+
         publishCompletedSnapshot(
                 inspection,
-                finalLabel,
+                completedCell,
                 simulationCompleted
         );
 
@@ -252,30 +256,37 @@ public class AiCallbackService {
 
     private void publishCompletedSnapshot(
             Inspection inspection,
-            FinalLabel finalLabel,
+            Optional<CellProgress> completedCell,
             boolean simulationCompleted
     ) {
         SnapshotResponse current = simulationSnapshotStore.find()
                 .orElse(null);
 
+        List<CellProgress> capture = current == null
+                ? new ArrayList<>()
+                : new ArrayList<>(current.capture());
+
+        completedCell.ifPresent(cell ->
+                capture.removeIf(progress ->
+                        progress.batteryCellId().equals(cell.batteryCellId())
+                                && progress.batchId().equals(cell.batchId())
+                )
+        );
+
         List<CellProgress> completed = new ArrayList<>();
 
         if (current != null) {
             completed.addAll(current.completed());
-
-            completed.removeIf(progress ->
-                    progress.inspectionId().equals(inspection.getId())
-            );
         }
 
-        completed.add(new CellProgress(
-                inspection.getBatteryCell().getId(),
-                inspection.getId(),
-                inspection.getInspectionBatch().getId(),
-                inspection.getInspectionType(),
-                InspectionBatchStatus.COMPLETED,
-                finalLabel
-        ));
+        completedCell.ifPresent(cell -> {
+            completed.removeIf(progress ->
+                    progress.batteryCellId().equals(cell.batteryCellId())
+                            && progress.batchId().equals(cell.batchId())
+            );
+
+            completed.add(cell);
+        });
 
         SnapshotResponse snapshot = new SnapshotResponse(
                 simulationCompleted
@@ -291,13 +302,67 @@ public class AiCallbackService {
                         .getSimulationRun()
                         .getCaptureSpeed(),
                 current == null ? List.of() : current.registered(),
-                current == null ? List.of() : current.capture(),
+                capture,
                 null,
                 completed
         );
 
         simulationSnapshotStore.save(snapshot);
         simulationEventPublisher.publish(snapshot);
+    }
+
+    private Optional<CellProgress> completeCellIfFinished(
+            Inspection completedInspection
+    ) {
+        List<Inspection> inspections =
+                inspectionRepository
+                        .findByInspectionBatchIdAndBatteryCellIdOrderByIdAsc(
+                                completedInspection.getInspectionBatch().getId(),
+                                completedInspection.getBatteryCell().getId()
+                        );
+
+        boolean hasUnfinishedInspection = inspections.stream()
+                .anyMatch(inspection ->
+                        inspection.getStatus() != InspectionStatus.COMPLETED
+                                && inspection.getStatus() != InspectionStatus.FAILED
+                );
+
+        if (hasUnfinishedInspection) {
+            return Optional.empty();
+        }
+
+        FinalLabel cellFinalLabel = resolveCellFinalLabel(inspections);
+
+        return Optional.of(new CellProgress(
+                completedInspection.getBatteryCell().getId(),
+                completedInspection.getInspectionBatch().getId(),
+                InspectionBatchStatus.COMPLETED,
+                cellFinalLabel
+        ));
+    }
+
+    private FinalLabel resolveCellFinalLabel(
+            List<Inspection> inspections
+    ) {
+        boolean hasFail = inspections.stream()
+                .anyMatch(inspection ->
+                        inspection.getFinalLabel() == FinalLabel.FAIL
+                );
+
+        if (hasFail) {
+            return FinalLabel.FAIL;
+        }
+
+        boolean hasReject = inspections.stream()
+                .anyMatch(inspection ->
+                        inspection.getFinalLabel() == FinalLabel.REJECT
+                );
+
+        if (hasReject) {
+            return FinalLabel.REJECT;
+        }
+
+        return FinalLabel.PASS;
     }
 
     private String toJson(Object value) {
