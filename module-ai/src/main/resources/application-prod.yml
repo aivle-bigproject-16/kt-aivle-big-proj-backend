@@ -1,0 +1,2 @@
+llm-server:
+  base-url: ${LLM_SERVER_URL}

@@ -24,6 +24,7 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -72,7 +73,7 @@ public class AiCallbackService {
         }
 
         validateCallback(inspection, callback);
-        validateFailureCallback(callback);
+        validateCallbackStatus(callback);
         validateFailureCallback(callback);
 
         if (isAlreadyProcessed(inspection)) {
@@ -292,13 +293,7 @@ public class AiCallbackService {
                 );
             }
 
-            String rawResponse = imageResult.rawResponse() == null
-                    ? null
-                    : imageResult.rawResponse().toString();
-
-            if (imageResult.description() != null) {
-                rawResponse = "{\"description\": \"" + imageResult.description() + "\"}";
-            }
+            String rawResponse = resolveRawResponse(imageResult);
 
             if (imageResult.defects() == null
                     || imageResult.defects().isEmpty()) {
@@ -655,5 +650,34 @@ public class AiCallbackService {
 
         simulationSnapshotStore.save(snapshot);
         simulationEventPublisher.publish(snapshot);
+    }
+
+    private String resolveRawResponse(
+            AiServerDto.ImageAnalysisResult imageResult
+    ) {
+        if (imageResult.rawResponse() == null
+                && (imageResult.description() == null
+                || imageResult.description().isBlank())) {
+            return null;
+        }
+
+        var storedResponse = objectMapper.createObjectNode();
+
+        if (imageResult.rawResponse() != null) {
+            storedResponse.set(
+                    "rawResponse",
+                    imageResult.rawResponse()
+            );
+        }
+
+        if (imageResult.description() != null
+                && !imageResult.description().isBlank()) {
+            storedResponse.put(
+                    "description",
+                    imageResult.description()
+            );
+        }
+
+        return storedResponse.toString();
     }
 }

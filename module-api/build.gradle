@@ -17,3 +17,23 @@ dependencies {
     // Swagger UI (Springdoc)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4'
 }
+
+tasks.named('test') {
+    useJUnitPlatform {
+        excludeTags 'integration'
+    }
+}
+
+tasks.register('integrationTest', Test) {
+    description = '실제 외부 DB를 사용하는 통합 테스트'
+    group = 'verification'
+
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
+
+    shouldRunAfter test
+}
