@@ -9,8 +9,10 @@ import com.aivle.big_project.domain.defect.DefectResultRepository;
 import com.aivle.big_project.domain.image.InspectionImage;
 import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.aivle.big_project.domain.inspection.*;
+import com.aivle.big_project.domain.inspection.InspectionFailureType;
 import com.aivle.big_project.domain.simulation.SimulationRun;
 import com.aivle.big_project.api.domain.simulation.event.InspectionAnalysisCompletedEvent;
+import com.aivle.big_project.api.domain.simulation.event.InspectionRecaptureRequestedEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -36,18 +38,42 @@ public class AiCallbackService {
     private final SimulationEventPublisher simulationEventPublisher;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private static final int MAX_CAPTURE_RETRY_COUNT = 2;
 
     public AiServerDto.CallbackResponse handle(
             AiServerDto.CellAnalysisCallbackRequest callback
     ) {
-        Inspection inspection = inspectionRepository //ai request id로 inspection 조회
+        Inspection inspection = inspectionRepository
                 .findByAiRequestId(callback.requestId())
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "AI 요청 정보를 찾을 수 없습니다."
-                ));
+                .orElse(null);
+
+        if (inspection == null) {
+            boolean duplicate =
+                    defectResultRepository.existsByAiRequestId(
+                            callback.requestId()
+                    );
+
+            if (duplicate) {
+                return new AiServerDto.CallbackResponse(
+                        true,
+                        callback.requestId(),
+                        callback.batchId(),
+                        callback.batteryCellId(),
+                        0,
+                        true,
+                        "이미 처리된 과거 AI 콜백입니다."
+                );
+            }
+
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "AI 요청 정보를 찾을 수 없습니다."
+            );
+        }
 
         validateCallback(inspection, callback);
+        validateFailureCallback(callback);
+        validateFailureCallback(callback);
 
         if (isAlreadyProcessed(inspection)) {
             return new AiServerDto.CallbackResponse(
@@ -61,26 +87,91 @@ public class AiCallbackService {
             );
         }
 
-        InspectionStatus inspectionStatus =
-                toInspectionStatus(callback.cellStatus());
+        boolean failed = "FAILED".equals(callback.cellStatus());
 
-        FinalLabel finalLabel = toFinalLabel(callback);
+        InspectionFailureType failureType =
+                toInspectionFailureType(callback);
 
-        List<DefectResult> defectResults =
-                createDefectResults(inspection, callback);
+        int savedResultCount;
 
-        defectResultRepository.saveAll(defectResults);
+        // 실패 콜백은 imageResults가 없어도 실패 이력 한 건을 저장
+        if (failed) {
+            defectResultRepository.save(
+                    createFailureResult(inspection, callback)
+            );
+
+            savedResultCount = 1;
+        } else {
+            List<DefectResult> defectResults =
+                    createDefectResults(inspection, callback);
+
+            defectResultRepository.saveAll(defectResults);
+
+            savedResultCount = defectResults.size();
+        }
+
+        SimulationRun simulationRun = inspection
+                .getInspectionBatch()
+                .getSimulationRun();
+
+        // 촬영 실패이고 재촬영 횟수가 남아 있으면 최종 실패 처리하지 않음
+        if (failed
+                && failureType == InspectionFailureType.CAPTURE
+                && inspection.canRetryCapture(MAX_CAPTURE_RETRY_COUNT)) {
+
+            inspection.prepareRecapture(
+                    failureType,
+                    callback.failureReason()
+            );
+
+            publishRecaptureSnapshot(inspection);
+
+            // 현재 Inspection 재촬영 예약
+            applicationEventPublisher.publishEvent(
+                    new InspectionRecaptureRequestedEvent(
+                            simulationRun.getId(),
+                            inspection.getId(),
+                            simulationRun.getCaptureSpeed()
+                    )
+            );
+
+            // AI 서버는 Run 전체의 다음 CAPTURED Inspection 처리
+            applicationEventPublisher.publishEvent(
+                    new InspectionAnalysisCompletedEvent(
+                            simulationRun.getId()
+                    )
+            );
+
+            return new AiServerDto.CallbackResponse(
+                    true,
+                    callback.requestId(),
+                    callback.batchId(),
+                    callback.batteryCellId(),
+                    savedResultCount,
+                    false,
+                    "촬영 실패 이력을 저장하고 재촬영을 예약했습니다."
+            );
+        }
+
+        // 여기부터는 성공 또는 최종 실패 처리
+        InspectionStatus finalStatus = failed
+                ? InspectionStatus.FAILED
+                : InspectionStatus.COMPLETED;
+
+        FinalLabel finalLabel = failed
+                ? FinalLabel.FAIL
+                : toFinalLabel(callback);
 
         inspection.completeAnalysis(
-                inspectionStatus,
+                finalStatus,
                 finalLabel,
-                callback.failureReason()
+                failed ? failureType : null,
+                failed ? callback.failureReason() : null
         );
 
-        completeBatchIfFinished(inspection.getInspectionBatch());
-
-        SimulationRun simulationRun = inspection.getInspectionBatch()
-                .getSimulationRun();
+        completeBatchIfFinished(
+                inspection.getInspectionBatch()
+        );
 
         boolean simulationCompleted =
                 completeSimulationRunIfFinished(simulationRun);
@@ -107,9 +198,11 @@ public class AiCallbackService {
                 callback.requestId(),
                 callback.batchId(),
                 callback.batteryCellId(),
-                callback.imageResults().size(),
+                savedResultCount,
                 false,
-                "AI 셀 분석 결과를 저장했습니다."
+                failed
+                        ? "AI 셀 분석 실패 결과를 저장했습니다."
+                        : "AI 셀 분석 결과를 저장했습니다."
         );
     }
 
@@ -156,17 +249,6 @@ public class AiCallbackService {
     private boolean isAlreadyProcessed(Inspection inspection) {
         return inspection.getStatus() == InspectionStatus.COMPLETED
                 || inspection.getStatus() == InspectionStatus.FAILED;
-    }
-
-    private InspectionStatus toInspectionStatus(String cellStatus) {
-        return switch (cellStatus) {
-            case "COMPLETED" -> InspectionStatus.COMPLETED;
-            case "FAILED" -> InspectionStatus.FAILED;
-            default -> throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "지원하지 않는 AI 셀 상태입니다: " + cellStatus
-            );
-        };
     }
 
     private FinalLabel toFinalLabel(
@@ -229,8 +311,10 @@ public class AiCallbackService {
                         imageResult.failType(), // Use failType as defectType
                         imageResult.confidence(),
                         null,
-                        rawResponse, // Contains description if present
-                        imageResult.latencyMs()
+                        rawResponse,
+                        imageResult.latencyMs(),
+                        inspection.currentAttemptNo(),
+                        callback.requestId()
                 ));
 
                 continue;
@@ -246,7 +330,9 @@ public class AiCallbackService {
                         defect.confidence(),
                         toJson(defect.bbox()),
                         rawResponse,
-                        imageResult.latencyMs()
+                        imageResult.latencyMs(),
+                        inspection.currentAttemptNo(),
+                        callback.requestId()
                 ));
             }
         }
@@ -397,5 +483,177 @@ public class AiCallbackService {
         if (!hasUnfinishedInspection) {
             batch.complete();
         }
+    }
+
+    private InspectionFailureType toInspectionFailureType(
+            AiServerDto.CellAnalysisCallbackRequest callback
+    ) {
+        // 분석 성공 시에는 실패 유형이 없음
+        if (!"FAILED".equals(callback.cellStatus())) {
+            return null;
+        }
+
+        if (callback.failureType() == null
+                || callback.failureType().isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "FAILED 콜백에는 failureType이 필요합니다."
+            );
+        }
+
+        try {
+            return InspectionFailureType.valueOf(
+                    callback.failureType().toUpperCase()
+            );
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "지원하지 않는 failureType입니다: "
+                            + callback.failureType()
+            );
+        }
+    }
+
+    private DefectResult createFailureResult(
+            Inspection inspection,
+            AiServerDto.CellAnalysisCallbackRequest callback
+    ) {
+        return DefectResult.create(
+                inspection,
+                null,
+                inspection.getInspectionType().name(),
+                "FAIL",
+                callback.failureReason(),
+                callback.confidence(),
+                null,
+                toJson(callback),
+                null,
+                inspection.currentAttemptNo(),
+                callback.requestId()
+        );
+    }
+
+    private void validateFailureCallback(
+            AiServerDto.CellAnalysisCallbackRequest callback
+    ) {
+        if (!"FAILED".equals(callback.cellStatus())) {
+            return;
+        }
+
+        if (callback.failureType() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "FAILED 콜백에는 failureType이 필요합니다."
+            );
+        }
+
+        if (callback.failureReason() == null
+                || callback.failureReason().isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "FAILED 콜백에는 failureReason이 필요합니다."
+            );
+        }
+
+        if (callback.finalLabel() != null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "FAILED 콜백의 finalLabel은 null이어야 합니다."
+            );
+        }
+    }
+
+    private void validateCallbackStatus(
+            AiServerDto.CellAnalysisCallbackRequest callback
+    ) {
+        if (!"COMPLETED".equals(callback.cellStatus())
+                && !"FAILED".equals(callback.cellStatus())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "지원하지 않는 AI 셀 상태입니다: "
+                            + callback.cellStatus()
+            );
+        }
+
+        if ("COMPLETED".equals(callback.cellStatus())) {
+            if (callback.finalLabel() == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "COMPLETED 콜백에는 finalLabel이 필요합니다."
+                );
+            }
+
+            if (!"PASS".equals(callback.finalLabel())
+                    && !"REJECT".equals(callback.finalLabel())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "COMPLETED 콜백의 finalLabel은 PASS 또는 REJECT여야 합니다."
+                );
+            }
+
+            if (callback.imageResults() == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "COMPLETED 콜백에는 imageResults가 필요합니다."
+                );
+            }
+
+            if (callback.failureType() != null
+                    || callback.failureReason() != null) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "COMPLETED 콜백에는 실패 정보가 없어야 합니다."
+                );
+            }
+        }
+    }
+
+    private void publishRecaptureSnapshot(
+            Inspection inspection
+    ) {
+        SnapshotResponse current = simulationSnapshotStore.find()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "시뮬레이션 스냅샷이 없습니다."
+                ));
+
+        List<CellProgress> capture =
+                new ArrayList<>(current.capture());
+
+        capture.removeIf(progress ->
+                progress.batteryCellId().equals(
+                        inspection.getBatteryCell().getId()
+                )
+                        && progress.batchId().equals(
+                        inspection.getInspectionBatch().getId()
+                )
+        );
+
+        capture.add(new CellProgress(
+                inspection.getBatteryCell().getId(),
+                inspection.getInspectionBatch().getId(),
+                InspectionBatchStatus.CAPTURING,
+                null
+        ));
+
+        SnapshotResponse snapshot = new SnapshotResponse(
+                SimulationEvent.PROGRESS,
+                inspection.getInspectionBatch()
+                        .getSimulationRun()
+                        .getBatchCount(),
+                inspection.getInspectionBatch()
+                        .getSimulationRun()
+                        .getBatteryCellCount(),
+                inspection.getInspectionBatch()
+                        .getSimulationRun()
+                        .getCaptureSpeed(),
+                current.registered(),
+                capture,
+                null,
+                current.completed()
+        );
+
+        simulationSnapshotStore.save(snapshot);
+        simulationEventPublisher.publish(snapshot);
     }
 }

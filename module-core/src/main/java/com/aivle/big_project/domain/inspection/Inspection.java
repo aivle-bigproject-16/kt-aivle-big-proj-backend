@@ -90,6 +90,13 @@ public class Inspection {
         this.updatedAt = LocalDateTime.now();
     }
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "failure_type", length = 20)
+    private InspectionFailureType failureType;
+
+    @Column(name = "capture_retry_count", nullable = false)
+    private int captureRetryCount = 0;
+
     public static Inspection create(
             InspectionBatch inspectionBatch,
             BatteryCell batteryCell,
@@ -120,10 +127,12 @@ public class Inspection {
     public void completeAnalysis(
             InspectionStatus status,
             FinalLabel finalLabel,
+            InspectionFailureType failureType,
             String failureReason
     ) {
         this.status = status;
         this.finalLabel = finalLabel;
+        this.failureType = failureType;
         this.failureReason = failureReason;
         this.analyzedAt = LocalDateTime.now();
     }
@@ -134,5 +143,26 @@ public class Inspection {
         this.ctPoreCount = ctPoreCount;
         this.ctSliceCount = ctSliceCount;
         this.rgbProsityRatio = rgbProsityRatio;
+    }
+
+    public int currentAttemptNo() {
+        return captureRetryCount + 1;
+    }
+
+    public boolean canRetryCapture(int maxRetryCount) {
+        return captureRetryCount < maxRetryCount;
+    }
+
+    public void prepareRecapture(
+            InspectionFailureType failureType,
+            String failureReason
+    ) {
+        this.captureRetryCount++;
+        this.status = InspectionStatus.CAPTURING;
+        this.failureType = failureType;
+        this.failureReason = failureReason;
+        this.finalLabel = null;
+        this.analyzedAt = null;
+        this.aiRequestId = null;
     }
 }

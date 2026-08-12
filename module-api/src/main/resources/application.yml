@@ -3,11 +3,6 @@ server:
 
 spring:
   datasource:
-#    Direct connection
-#    url: jdbc:postgresql://db.ozcdarfrstpmwvjkcoqe.supabase.co:5432/postgres?sslmode=require
-#    username: postgres
-#    password: "16's_aivle_"
-#    driver-class-name: org.postgresql.Driver
     url: jdbc:postgresql://aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require
     username: postgres.raybvdyfljopcfnhxiaq
     password: ${DB_PASSWORD}

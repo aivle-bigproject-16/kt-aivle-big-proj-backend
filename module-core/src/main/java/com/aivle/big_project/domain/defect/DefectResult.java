@@ -64,6 +64,12 @@ public class DefectResult {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "attempt_no", nullable = false)
+    private int attemptNo;
+
+    @Column(name = "ai_request_id", length = 100)
+    private String aiRequestId;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -78,7 +84,9 @@ public class DefectResult {
             BigDecimal confidence,
             String bbox,
             String rawResponse,
-            Integer latencyMs
+            Integer latencyMs,
+            int attemptNo,
+            String aiRequestId
     ) {
         DefectResult result = new DefectResult();
 
@@ -91,6 +99,8 @@ public class DefectResult {
         result.bbox = bbox;
         result.rawResponse = rawResponse;
         result.latencyMs = latencyMs;
+        result.attemptNo = attemptNo;
+        result.aiRequestId = aiRequestId;
 
         return result;
     }

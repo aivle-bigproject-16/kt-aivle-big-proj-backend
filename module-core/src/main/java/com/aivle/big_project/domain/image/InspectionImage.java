@@ -12,8 +12,12 @@ import java.time.LocalDateTime;
         name = "inspection_image",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_inspection_image_source",
-                        columnNames = {"inspection_id", "battery_cell_image_id"}
+                        name = "uk_inspection_image_source_attempt",
+                        columnNames = {
+                                "inspection_id",
+                                "battery_cell_image_id",
+                                "attempt_no"
+                        }
                 )
         }
 )
@@ -75,6 +79,9 @@ public class InspectionImage {
     @JoinColumn(name = "battery_cell_image_id")
     private BatteryCellImage batteryCellImage;
 
+    @Column(name = "attempt_no", nullable = false)
+    private int attemptNo;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -100,7 +107,8 @@ public class InspectionImage {
 
     public static InspectionImage createFromSource(
             Inspection inspection,
-            BatteryCellImage sourceImage
+            BatteryCellImage sourceImage,
+            int attemptNo
     ) {
         InspectionImage image = new InspectionImage();
 
@@ -111,6 +119,12 @@ public class InspectionImage {
         image.objectKey = sourceImage.getObjectKey();
         image.sourceObjectKey = sourceImage.getObjectKey();
         image.storageType = sourceImage.getStorageType();
+        image.fileName = sourceImage.getFileName();
+        image.fileSize = sourceImage.getFileSize();
+        image.contentType = sourceImage.getContentType();
+        image.width = sourceImage.getWidth();
+        image.height = sourceImage.getHeight();
+        image.attemptNo = attemptNo;
 
         return image;
     }

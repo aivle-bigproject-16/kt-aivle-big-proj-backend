@@ -13,4 +13,15 @@ public interface InspectionImageRepository extends JpaRepository<InspectionImage
             Long inspectionId,
             Long batteryCellImageId
     );
+
+    boolean existsByInspectionIdAndBatteryCellImageIdAndAttemptNo(
+            Long inspectionId,
+            Long batteryCellImageId,
+            int attemptNo
+    );
+
+    List<InspectionImage> findByInspectionIdAndAttemptNoOrderByIdAsc(
+            Long inspectionId,
+            int attemptNo
+    );
 }

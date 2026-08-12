@@ -310,10 +310,14 @@ public class SimulationService {
         Inspection inspection = nextInspectionOptional.get();
         InspectionBatch batch = inspection.getInspectionBatch();
 
+        int attemptNo = inspection.currentAttemptNo();
+
         List<InspectionImage> images =
-                inspectionImageRepository.findByInspectionIdIn(
-                        List.of(inspection.getId())
-                );
+                inspectionImageRepository
+                        .findByInspectionIdAndAttemptNoOrderByIdAsc(
+                                inspection.getId(),
+                                attemptNo
+                        );
 
         if (images.isEmpty()) {
             throw new ResponseStatusException(
@@ -407,6 +411,74 @@ public class SimulationService {
                         HttpStatus.NOT_FOUND,
                         "진행 중인 시뮬레이션이 없습니다."
                 ));
+    }
+
+    @Transactional
+    public SnapshotResponse completeInspectionRecapture(
+            Long inspectionId
+    ) {
+        Inspection inspection = inspectionRepository.findById(inspectionId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "재촬영할 검사를 찾을 수 없습니다."
+                ));
+
+        if (inspection.getStatus() != InspectionStatus.CAPTURING) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "CAPTURING 상태의 검사만 촬영 완료할 수 있습니다."
+            );
+        }
+
+        // DB 상태: CAPTURING → CAPTURED
+        inspection.completeCapture();
+
+        SnapshotResponse current = simulationSnapshotStore.find()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "진행 중인 시뮬레이션 스냅샷이 없습니다."
+                ));
+
+        List<CellProgress> capture =
+                new ArrayList<>(current.capture());
+
+        Long batteryCellId =
+                inspection.getBatteryCell().getId();
+
+        Long batchId =
+                inspection.getInspectionBatch().getId();
+
+        // 기존 CAPTURING 표시 제거
+        capture.removeIf(progress ->
+                progress.batteryCellId().equals(batteryCellId)
+                        && progress.batchId().equals(batchId)
+        );
+
+        // CAPTURED 상태로 다시 추가
+        capture.add(new CellProgress(
+                batteryCellId,
+                batchId,
+                InspectionBatchStatus.CAPTURED,
+                null
+        ));
+
+        SimulationRun simulationRun =
+                inspection.getInspectionBatch().getSimulationRun();
+
+        SnapshotResponse snapshot = new SnapshotResponse(
+                SimulationEvent.PROGRESS,
+                simulationRun.getBatchCount(),
+                simulationRun.getBatteryCellCount(),
+                simulationRun.getCaptureSpeed(),
+                current.registered(),
+                capture,
+                null,
+                current.completed()
+        );
+
+        publishSnapshot(snapshot);
+
+        return snapshot;
     }
 
     /**
