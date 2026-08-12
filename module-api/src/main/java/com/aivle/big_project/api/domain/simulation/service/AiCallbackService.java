@@ -296,6 +296,10 @@ public class AiCallbackService {
                     ? null
                     : imageResult.rawResponse().toString();
 
+            if (imageResult.description() != null) {
+                rawResponse = "{\"description\": \"" + imageResult.description() + "\"}";
+            }
+
             if (imageResult.defects() == null
                     || imageResult.defects().isEmpty()) {
 
@@ -304,7 +308,7 @@ public class AiCallbackService {
                         image,
                         imageResult.imageType(),
                         imageResult.label(),
-                        null,
+                        imageResult.failType(), // Use failType as defectType
                         imageResult.confidence(),
                         null,
                         rawResponse,

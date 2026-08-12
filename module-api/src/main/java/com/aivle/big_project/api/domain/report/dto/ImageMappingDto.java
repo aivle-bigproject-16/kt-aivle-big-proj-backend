@@ -8,6 +8,9 @@ public record ImageMappingDto(
         String imageType,
         Long imageId,
         String imgUrl,
+        Long volume,
+        Long index,
+        String axis,
         @JsonRawValue String bbox
 ) {
 }
