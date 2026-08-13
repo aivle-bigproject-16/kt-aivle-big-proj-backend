@@ -13,6 +13,6 @@ public interface ReportsIndividualRepository extends JpaRepository<ReportsIndivi
     @Query("SELECT MAX(r.version) FROM ReportsIndividual r WHERE r.batteryCell.id = :batteryCellId")
     Integer findMaxVersionByBatteryCellId(@Param("batteryCellId") Long batteryCellId);
     
-    @Query("SELECT r FROM ReportsIndividual r WHERE r.status = 'PENDING' AND (r.dispatchedAt IS NULL OR r.dispatchedAt < :threshold)")
+    @Query("SELECT r FROM ReportsIndividual r WHERE r.status = 'PENDING' AND ((r.dispatchedAt IS NULL AND r.createdAt < :threshold) OR r.dispatchedAt < :threshold)")
     List<ReportsIndividual> findPendingReportsOlderThan(@Param("threshold") LocalDateTime threshold);
 }

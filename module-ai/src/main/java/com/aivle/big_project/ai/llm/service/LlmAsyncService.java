@@ -43,7 +43,6 @@ public class LlmAsyncService {
     private final Semaphore semaphore = new Semaphore(2);
 
     @Async
-    @Transactional
     public void generateDailyReportAsync(Long reportId) {
 //        log.info("[Async] Starting daily report generation for ID: {}", reportId);
 
@@ -112,7 +111,9 @@ public class LlmAsyncService {
                 }
             } catch (Exception ex) {
                 log.error("Error during daily report request to VLM", ex);
-                report.updateResult(ReportStatus.FAILED, null, null, "AI_SERVER_ERROR");
+                String reason = (ex.toString().contains("Timeout") || (ex.getMessage() != null && ex.getMessage().contains("Timeout")))
+                        ? "AI_SERVER_TIMEOUT" : "AI_SERVER_ERROR";
+                report.updateResult(ReportStatus.FAILED, null, null, reason);
             }
             
             reportsDailyRepository.save(report);
@@ -125,7 +126,6 @@ public class LlmAsyncService {
     }
 
     @Async
-    @Transactional
     public void generateIndividualReportAsync(Long reportId) {
 //        log.info("[Async] Starting individual report generation for ID: {}", reportId);
 
@@ -268,7 +268,9 @@ public class LlmAsyncService {
                 }
             } catch (Exception ex) {
                 log.error("Error during individual report request to VLM", ex);
-                report.updateResult(ReportStatus.FAILED, null, null, "AI_SERVER_ERROR");
+                String reason = (ex.toString().contains("Timeout") || (ex.getMessage() != null && ex.getMessage().contains("Timeout")))
+                        ? "AI_SERVER_TIMEOUT" : "AI_SERVER_ERROR";
+                report.updateResult(ReportStatus.FAILED, null, null, reason);
             }
 
             reportsIndividualRepository.save(report);
