@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Set;
@@ -74,11 +75,19 @@ public class LlmAsyncService {
         }
 
         try {
+            LocalDateTime dispatchedAt = LocalDateTime.now();
+            int claimed = reportsDailyRepository.claimForGeneration(
+                    reportId,
+                    dispatchedAt,
+                    dispatchedAt.minusMinutes(10)
+            );
+            if (claimed == 0) {
+                log.info("Daily report {} was already claimed by another worker. Skipping duplicate request.", reportId);
+                return;
+            }
+
             ReportsDaily report = reportsDailyRepository.findById(reportId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 일일 리포트입니다."));
-
-            report.markAsDispatched();
-            reportsDailyRepository.saveAndFlush(report);
 
             LocalDate targetDate = report.getReportDate();
             LocalDate prevDate = targetDate.minusDays(1);
@@ -106,34 +115,33 @@ public class LlmAsyncService {
                 defects
             );
 
-            try {
-                report.updateSummaryJson(objectMapper.writeValueAsString(summaryData));
-            } catch(Exception e) {
-                log.warn("Failed to parse summaryJson for daily report {}", reportId);
-            }
-
             VlmDailyData dailyData = new VlmDailyData(
                     targetDate.toString(),
                     summaryData
             );
             VlmDailyReportRequest request = new VlmDailyReportRequest(dailyData);
 
+            VlmReportResponse response = null;
+            String failureReason = null;
             try {
-                VlmReportResponse response = llmWebClient.requestDailyReport(request, reportId).block();
-                if (response != null) {
-                    ReportStatus finalStatus = "COMPLETED".equalsIgnoreCase(response.status()) ? ReportStatus.COMPLETED : ReportStatus.FAILED;
-                    report.updateResult(finalStatus, response.title(), response.content(), response.failureReason());
-                } else {
-                    report.updateResult(ReportStatus.FAILED, null, null, "EMPTY_RESPONSE");
-                }
+                response = llmWebClient.requestDailyReport(request, reportId).block();
+                if (response == null) failureReason = "EMPTY_RESPONSE";
             } catch (Exception ex) {
                 log.error("Error during daily report request to VLM", ex);
-                String reason = (ex.toString().contains("Timeout") || (ex.getMessage() != null && ex.getMessage().contains("Timeout")))
+                failureReason = (ex.toString().contains("Timeout") || (ex.getMessage() != null && ex.getMessage().contains("Timeout")))
                         ? "AI_SERVER_TIMEOUT" : "AI_SERVER_ERROR";
-                report.updateResult(ReportStatus.FAILED, null, null, reason);
             }
-            
-            reportsDailyRepository.save(report);
+
+            ReportsDaily resultReport = reportsDailyRepository.findById(reportId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 일일 리포트입니다."));
+            resultReport.updateSummaryJson(objectMapper.writeValueAsString(summaryData));
+            if (response != null) {
+                ReportStatus finalStatus = "COMPLETED".equalsIgnoreCase(response.status()) ? ReportStatus.COMPLETED : ReportStatus.FAILED;
+                resultReport.updateResult(finalStatus, response.title(), response.content(), response.failureReason());
+            } else {
+                resultReport.updateResult(ReportStatus.FAILED, null, null, failureReason);
+            }
+            reportsDailyRepository.save(resultReport);
 
         } catch (Exception e) {
             log.error("[Async] Error during daily report generation", e);
