@@ -16,7 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +32,7 @@ public class ReportService {
     private final BatteryCellRepository batteryCellRepository;
     private final InspectionRepository inspectionRepository;
     private final DefectResultRepository defectResultRepository;
+    private final RestClient aiGatewayRestClient;
 
     public PagedResponse<DailyReportListResponse> getDailyReports(Pageable pageable) {
         Page<ReportsDaily> reports = reportsDailyRepository.findAll(pageable);
@@ -112,9 +113,10 @@ public class ReportService {
         
         // module-ai (LLM 워커 서버)로 생성 비동기 처리 지시
         try {
-            RestTemplate restTemplate = new RestTemplate();
-            String aiServerUrl = "http://localhost:8081/internal/llm/reports/daily/" + saved.getId();
-            restTemplate.postForEntity(aiServerUrl, null, Void.class);
+            aiGatewayRestClient.post()
+                    .uri("/internal/llm/reports/daily/{reportId}", saved.getId())
+                    .retrieve()
+                    .toBodilessEntity();
         } catch (Exception e) {
             System.err.println("Failed to trigger LLM generation for report " + saved.getId() + ": " + e.getMessage());
         }
@@ -149,9 +151,10 @@ public class ReportService {
 
         // 비동기 VLM 생성 지시 (module-ai 호출)
         try {
-            RestTemplate restTemplate = new RestTemplate();
-            String aiServerUrl = "http://localhost:8081/internal/llm/reports/individual/" + saved.getId();
-            restTemplate.postForEntity(aiServerUrl, null, Void.class);
+            aiGatewayRestClient.post()
+                    .uri("/internal/llm/reports/individual/{reportId}", saved.getId())
+                    .retrieve()
+                    .toBodilessEntity();
         } catch (Exception e) {
             System.err.println("Failed to trigger LLM generation for individual report " + saved.getId() + ": " + e.getMessage());
         }
