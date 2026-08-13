@@ -39,6 +39,7 @@ public class AiCallbackService {
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
     private static final int MAX_CAPTURE_RETRY_COUNT = 2;
+    private static final int MAX_FAILURE_REASON_LENGTH = 100;
 
     public AiServerDto.CallbackResponse handle(
             AiServerDto.CellAnalysisCallbackRequest callback
@@ -72,7 +73,6 @@ public class AiCallbackService {
         }
 
         validateCallback(inspection, callback);
-        validateFailureCallback(callback);
         validateFailureCallback(callback);
 
         if (isAlreadyProcessed(inspection)) {
@@ -121,7 +121,7 @@ public class AiCallbackService {
 
             inspection.prepareRecapture(
                     failureType,
-                    callback.failureReason()
+                    summarizeFailureReason(callback.failureReason())
             );
 
             publishRecaptureSnapshot(inspection);
@@ -166,7 +166,9 @@ public class AiCallbackService {
                 finalStatus,
                 finalLabel,
                 failed ? failureType : null,
-                failed ? callback.failureReason() : null
+                failed
+                        ? summarizeFailureReason(callback.failureReason())
+                        : null
         );
 
         completeBatchIfFinished(
@@ -523,7 +525,7 @@ public class AiCallbackService {
                 null,
                 inspection.getInspectionType().name(),
                 "FAIL",
-                callback.failureReason(),
+                callback.failureType().toUpperCase(),
                 callback.confidence(),
                 null,
                 toJson(callback),
@@ -531,6 +533,15 @@ public class AiCallbackService {
                 inspection.currentAttemptNo(),
                 callback.requestId()
         );
+    }
+
+    private String summarizeFailureReason(String failureReason) {
+        if (failureReason == null
+                || failureReason.length() <= MAX_FAILURE_REASON_LENGTH) {
+            return failureReason;
+        }
+
+        return failureReason.substring(0, MAX_FAILURE_REASON_LENGTH);
     }
 
     private void validateFailureCallback(
