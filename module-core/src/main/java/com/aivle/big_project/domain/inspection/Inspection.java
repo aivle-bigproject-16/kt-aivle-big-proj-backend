@@ -34,7 +34,7 @@ public class Inspection {
     @Column(name = "status", length = 30, nullable = false)
     private InspectionStatus status = InspectionStatus.PENDING;
 
-    @Column(name = "failure_reason", length = 100)
+    @Column(name = "failure_reason", length = 255)
     private String failureReason;
 
     @Enumerated(EnumType.STRING)

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 
 public record BatteryCellListResponse(
         Long inspectionId,
+        Long batchId,
         Long batteryCellId,
         String cellSerialNo,
         String modelName,

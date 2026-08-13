@@ -38,7 +38,7 @@ public class DefectResult {
     @Column(name = "label", length = 20, nullable = false)
     private String label;
 
-    @Column(name = "defect_type", length = 50)
+    @Column(name = "defect_type", length = 255)
     private String defectType;
 
     @Column(name = "confidence", precision = 5, scale = 4)
