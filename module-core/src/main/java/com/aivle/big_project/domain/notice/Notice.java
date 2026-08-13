@@ -32,6 +32,12 @@ public class Notice {
     @JoinColumn(name = "user_id", nullable = false)
     private User author;
 
+    @Column(name = "file_url")
+    private String fileUrl;
+
+    @Column(name = "original_file_name")
+    private String originalFileName;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -52,5 +58,10 @@ public class Notice {
     public void update(String title, String content) {
         this.title = title;
         this.content = content;
+    }
+
+    public void updateFile(String fileUrl, String originalFileName) {
+        this.fileUrl = fileUrl;
+        this.originalFileName = originalFileName;
     }
 }

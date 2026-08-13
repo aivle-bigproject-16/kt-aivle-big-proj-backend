@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import com.aivle.big_project.api.global.s3.S3FileStorageService;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +22,7 @@ public class NoticeService {
 
     private final NoticeRepository noticeRepository;
     private final UserRepository userRepository;
+    private final S3FileStorageService s3FileStorageService;
 
     @Transactional
     public NoticeDto.Response createNotice(String email, NoticeDto.Request request) {
@@ -32,6 +34,11 @@ public class NoticeService {
                 .content(request.content())
                 .author(author)
                 .build();
+
+        if (request.file() != null && !request.file().isEmpty()) {
+            String fileUrl = s3FileStorageService.uploadFile(request.file());
+            notice.updateFile(fileUrl, request.file().getOriginalFilename());
+        }
                 
         return NoticeDto.Response.from(noticeRepository.save(notice));
     }
@@ -42,14 +49,35 @@ public class NoticeService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notice not found"));
                 
         notice.update(request.title(), request.content());
+
+        // 새로운 파일이 들어온 경우 교체
+        if (request.file() != null && !request.file().isEmpty()) {
+            if (notice.getFileUrl() != null) {
+                s3FileStorageService.deleteFile(notice.getFileUrl());
+            }
+            String fileUrl = s3FileStorageService.uploadFile(request.file());
+            notice.updateFile(fileUrl, request.file().getOriginalFilename());
+        } 
+        // 명시적으로 파일 삭제 요청이 온 경우
+        else if (Boolean.TRUE.equals(request.deleteFile())) {
+            if (notice.getFileUrl() != null) {
+                s3FileStorageService.deleteFile(notice.getFileUrl());
+                notice.updateFile(null, null);
+            }
+        }
+        
         return NoticeDto.Response.from(notice);
     }
 
     @Transactional
     public void deleteNotice(Long noticeId) {
-        if (!noticeRepository.existsById(noticeId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Notice not found");
+        Notice notice = noticeRepository.findById(noticeId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notice not found"));
+        
+        if (notice.getFileUrl() != null) {
+            s3FileStorageService.deleteFile(notice.getFileUrl());
         }
+        
         noticeRepository.deleteById(noticeId);
     }
 

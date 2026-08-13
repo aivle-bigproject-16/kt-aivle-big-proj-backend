@@ -26,7 +26,7 @@ public class NoticeController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<NoticeDto.Response>> createNotice(
-            @RequestBody NoticeDto.Request request,
+            @ModelAttribute NoticeDto.Request request,
             @AuthenticationPrincipal UserDetails userDetails) {
         NoticeDto.Response response = noticeService.createNotice(userDetails.getUsername(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("공지사항 작성이 완료되었습니다.", response));
@@ -36,7 +36,7 @@ public class NoticeController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<NoticeDto.Response>> updateNotice(
             @PathVariable Long id,
-            @RequestBody NoticeDto.Request request) {
+            @ModelAttribute NoticeDto.Request request) {
         NoticeDto.Response response = noticeService.updateNotice(id, request);
         return ResponseEntity.ok(ApiResponse.success("공지사항 수정이 완료되었습니다.", response));
     }
