@@ -64,7 +64,7 @@ public class BatteryCellService {
                 .updatedAt(rep.getUpdatedAt())
                 .build()).toList();
 
-        List<Inspection> inspections = inspectionRepository.findByBatteryCellIdAndFinalLabelIn(id, List.of(FinalLabel.REJECT, FinalLabel.FAIL));
+        List<Inspection> inspections = inspectionRepository.findByBatteryCellIdAndFinalLabelIn(id, List.of(FinalLabel.REJECT, FinalLabel.FAIL, FinalLabel.PASS));
         if (inspections.isEmpty()) {
             return BatteryCellDetailResponse.builder()
                     .batteryCellId(cell.getId())
