@@ -12,6 +12,6 @@ import java.util.Optional;
 public interface ReportsDailyRepository extends JpaRepository<ReportsDaily, Long> {
     Optional<ReportsDaily> findByReportDate(LocalDate reportDate);
     
-    @Query("SELECT r FROM ReportsDaily r WHERE r.status = 'PENDING' AND (r.dispatchedAt IS NULL OR r.dispatchedAt < :threshold)")
+    @Query("SELECT r FROM ReportsDaily r WHERE r.status = 'PENDING' AND ((r.dispatchedAt IS NULL AND r.createdAt < :threshold) OR r.dispatchedAt < :threshold)")
     List<ReportsDaily> findPendingReportsOlderThan(@Param("threshold") LocalDateTime threshold);
 }
