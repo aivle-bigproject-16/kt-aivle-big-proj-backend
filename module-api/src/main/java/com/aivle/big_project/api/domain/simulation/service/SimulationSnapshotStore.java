@@ -4,8 +4,11 @@ import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.SnapshotRes
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 
@@ -26,35 +29,49 @@ public class SimulationSnapshotStore {
                     SNAPSHOT_KEY,
                     snapshotJson
             );
-        } catch (JsonProcessingException e) {
+        } catch (JsonProcessingException exception) {
             throw new IllegalStateException(
                     "시뮬레이션 스냅샷 저장에 실패했습니다.",
-                    e
+                    exception
             );
+        } catch (RedisConnectionFailureException exception) {
+            throw redisUnavailable(exception);
         }
     }
 
     public Optional<SnapshotResponse> find() {
-        String snapshotJson = redisTemplate
-                .opsForValue()
-                .get(SNAPSHOT_KEY);
-
-        if (snapshotJson == null) {
-            return Optional.empty();
-        }
-
         try {
+            String snapshotJson = redisTemplate
+                    .opsForValue()
+                    .get(SNAPSHOT_KEY);
+
+            if (snapshotJson == null) {
+                return Optional.empty();
+            }
+
             return Optional.of(
                     objectMapper.readValue(
                             snapshotJson,
                             SnapshotResponse.class
                     )
             );
-        } catch (JsonProcessingException e) {
+        } catch (JsonProcessingException exception) {
             throw new IllegalStateException(
                     "시뮬레이션 스냅샷 조회에 실패했습니다.",
-                    e
+                    exception
             );
+        } catch (RedisConnectionFailureException exception) {
+            throw redisUnavailable(exception);
         }
+    }
+
+    private ResponseStatusException redisUnavailable(
+            RedisConnectionFailureException exception
+    ) {
+        return new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "시뮬레이션 상태 저장소에 연결할 수 없습니다.",
+                exception
+        );
     }
 }
