@@ -28,4 +28,4 @@ ai-server:
 llm-server:
   base-url: ${LLM_SERVER_URL:https://prevalent-dance-sculpture.ngrok-free.dev}
   connect-timeout: 3s
-  read-timeout: 120s
+  read-timeout: 600s

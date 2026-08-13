@@ -1,13 +1,16 @@
 package com.aivle.big_project.api.domain.notice.dto;
 
 import com.aivle.big_project.domain.notice.Notice;
+import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 
 public class NoticeDto {
 
     public record Request(
             String title,
-            String content
+            String content,
+            MultipartFile file,
+            Boolean deleteFile
     ) {}
 
     public record Response(
@@ -16,16 +19,20 @@ public class NoticeDto {
             String content,
             String authorName,
             String authorEmail,
+            String fileUrl,
+            String originalFileName,
             LocalDateTime createdAt,
             LocalDateTime updatedAt
     ) {
-        public static Response from(Notice notice) {
+        public static Response from(Notice notice, String downloadUrl) {
             return new Response(
                     notice.getId(),
                     notice.getTitle(),
                     notice.getContent(),
                     notice.getAuthor().getName(),
                     notice.getAuthor().getEmail(),
+                    downloadUrl,
+                    notice.getOriginalFileName(),
                     notice.getCreatedAt(),
                     notice.getUpdatedAt()
             );

@@ -65,8 +65,7 @@ public class ReportsDaily {
     
     public void changeStatusToPending() {
         this.status = ReportStatus.PENDING;
-        // 상태를 다시 PENDING으로 돌리므로 실패 사유나 결과값들은 일단 초기화할 수도 있지만,
-        // 기존 데이터를 덮어쓰기 위해 여기선 status만 변경함
+        this.dispatchedAt = null;
     }
     
     public void markAsDispatched() {

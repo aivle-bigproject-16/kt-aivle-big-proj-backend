@@ -21,7 +21,10 @@ import java.util.stream.Collectors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.BitSet;
 import java.awt.Rectangle;
 import com.aivle.big_project.domain.image.InspectionImage;
@@ -41,28 +44,50 @@ public class LlmAsyncService {
 
     // 최대 2개의 스레드만 동시 접근 허용
     private final Semaphore semaphore = new Semaphore(2);
+    
+    // 현재 JVM 메모리 큐(세마포어 대기 + 실행 중)에 있는 리포트 ID 추적
+    private final Set<Long> inProgressDaily = ConcurrentHashMap.newKeySet();
+    private final Set<Long> inProgressIndividual = ConcurrentHashMap.newKeySet();
+
+    public boolean isDailyInProgress(Long id) {
+        return inProgressDaily.contains(id);
+    }
+
+    public boolean isIndividualInProgress(Long id) {
+        return inProgressIndividual.contains(id);
+    }
 
     @Async
-    @Transactional
     public void generateDailyReportAsync(Long reportId) {
-//        log.info("[Async] Starting daily report generation for ID: {}", reportId);
-
-        try {
-            if (!semaphore.tryAcquire(5, TimeUnit.SECONDS)) {
-                log.warn("Semaphore full. Aborting daily report {} for now (will be retried by scheduler)", reportId);
-                return;
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        // 큐에 진입함을 표시 (스케줄러가 건드리지 않도록)
+        if (!inProgressDaily.add(reportId)) {
+            log.info("Daily report {} is already in progress queue. Skipping duplicate request.", reportId);
             return;
         }
 
         try {
+            // 세마포어 자리가 날 때까지 무한 대기 (즉시 취소되지 않고 큐처럼 동작)
+            semaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            inProgressDaily.remove(reportId);
+            return;
+        }
+
+        try {
+            LocalDateTime dispatchedAt = LocalDateTime.now();
+            int claimed = reportsDailyRepository.claimForGeneration(
+                    reportId,
+                    dispatchedAt,
+                    dispatchedAt.minusMinutes(10)
+            );
+            if (claimed == 0) {
+                log.info("Daily report {} was already claimed by another worker. Skipping duplicate request.", reportId);
+                return;
+            }
+
             ReportsDaily report = reportsDailyRepository.findById(reportId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 일일 리포트입니다."));
-
-            report.markAsDispatched();
-            reportsDailyRepository.saveAndFlush(report);
 
             LocalDate targetDate = report.getReportDate();
             LocalDate prevDate = targetDate.minusDays(1);
@@ -90,52 +115,56 @@ public class LlmAsyncService {
                 defects
             );
 
-            try {
-                report.updateSummaryJson(objectMapper.writeValueAsString(summaryData));
-            } catch(Exception e) {
-                log.warn("Failed to parse summaryJson for daily report {}", reportId);
-            }
-
             VlmDailyData dailyData = new VlmDailyData(
                     targetDate.toString(),
                     summaryData
             );
             VlmDailyReportRequest request = new VlmDailyReportRequest(dailyData);
 
+            VlmReportResponse response = null;
+            String failureReason = null;
             try {
-                VlmReportResponse response = llmWebClient.requestDailyReport(request, reportId).block();
-                if (response != null) {
-                    ReportStatus finalStatus = "COMPLETED".equalsIgnoreCase(response.status()) ? ReportStatus.COMPLETED : ReportStatus.FAILED;
-                    report.updateResult(finalStatus, response.title(), response.content(), response.failureReason());
-                } else {
-                    report.updateResult(ReportStatus.FAILED, null, null, "EMPTY_RESPONSE");
-                }
+                response = llmWebClient.requestDailyReport(request, reportId).block();
+                if (response == null) failureReason = "EMPTY_RESPONSE";
             } catch (Exception ex) {
                 log.error("Error during daily report request to VLM", ex);
-                report.updateResult(ReportStatus.FAILED, null, null, "AI_SERVER_ERROR");
+                failureReason = (ex.toString().contains("Timeout") || (ex.getMessage() != null && ex.getMessage().contains("Timeout")))
+                        ? "AI_SERVER_TIMEOUT" : "AI_SERVER_ERROR";
             }
-            
-            reportsDailyRepository.save(report);
+
+            ReportsDaily resultReport = reportsDailyRepository.findById(reportId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 일일 리포트입니다."));
+            resultReport.updateSummaryJson(objectMapper.writeValueAsString(summaryData));
+            if (response != null) {
+                ReportStatus finalStatus = "COMPLETED".equalsIgnoreCase(response.status()) ? ReportStatus.COMPLETED : ReportStatus.FAILED;
+                resultReport.updateResult(finalStatus, response.title(), response.content(), response.failureReason());
+            } else {
+                resultReport.updateResult(ReportStatus.FAILED, null, null, failureReason);
+            }
+            reportsDailyRepository.save(resultReport);
 
         } catch (Exception e) {
             log.error("[Async] Error during daily report generation", e);
         } finally {
             semaphore.release();
+            inProgressDaily.remove(reportId);
         }
     }
 
     @Async
-    @Transactional
     public void generateIndividualReportAsync(Long reportId) {
-//        log.info("[Async] Starting individual report generation for ID: {}", reportId);
+        // 큐에 진입함을 표시 (스케줄러가 건드리지 않도록)
+        if (!inProgressIndividual.add(reportId)) {
+            log.info("Individual report {} is already in progress queue. Skipping duplicate request.", reportId);
+            return;
+        }
 
         try {
-            if (!semaphore.tryAcquire(5, TimeUnit.SECONDS)) {
-                log.warn("Semaphore full. Aborting individual report {} for now (will be retried by scheduler)", reportId);
-                return;
-            }
+            // 세마포어 자리가 날 때까지 무한 대기
+            semaphore.acquire();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            inProgressIndividual.remove(reportId);
             return;
         }
 
@@ -268,7 +297,9 @@ public class LlmAsyncService {
                 }
             } catch (Exception ex) {
                 log.error("Error during individual report request to VLM", ex);
-                report.updateResult(ReportStatus.FAILED, null, null, "AI_SERVER_ERROR");
+                String reason = (ex.toString().contains("Timeout") || (ex.getMessage() != null && ex.getMessage().contains("Timeout")))
+                        ? "AI_SERVER_TIMEOUT" : "AI_SERVER_ERROR";
+                report.updateResult(ReportStatus.FAILED, null, null, reason);
             }
 
             reportsIndividualRepository.save(report);
@@ -277,6 +308,7 @@ public class LlmAsyncService {
             log.error("[Async] Error during individual report generation", e);
         } finally {
             semaphore.release();
+            inProgressIndividual.remove(reportId);
         }
     }
 

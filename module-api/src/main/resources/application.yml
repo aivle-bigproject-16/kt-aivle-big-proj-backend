@@ -13,6 +13,11 @@ spring:
       maximum-pool-size: 3
       minimum-idle: 1
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
   
   jpa:
     hibernate:
@@ -50,3 +55,5 @@ ai-gateway:
   read-timeout: 10s
 
   callback-url: ${BACKEND_CALLBACK_URL:http://localhost:8080/internal/ai/callbacks/cell}
+
+AWS_S3_BUCKET: "kt-aivle-big-proj-kks"
