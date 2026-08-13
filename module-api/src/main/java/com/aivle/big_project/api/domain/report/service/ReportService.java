@@ -15,6 +15,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import org.springframework.web.client.RestClient;
 
@@ -111,15 +113,11 @@ public class ReportService {
         
         ReportsDaily saved = reportsDailyRepository.save(report);
         
-        // module-ai (LLM 워커 서버)로 생성 비동기 처리 지시
-        try {
-            aiGatewayRestClient.post()
-                    .uri("/internal/llm/reports/daily/{reportId}", saved.getId())
-                    .retrieve()
-                    .toBodilessEntity();
-        } catch (Exception e) {
-            System.err.println("Failed to trigger LLM generation for report " + saved.getId() + ": " + e.getMessage());
-        }
+        dispatchAfterCommit(
+                "/internal/llm/reports/daily/{reportId}",
+                saved.getId(),
+                "report"
+        );
         
         return DailyReportResponse.builder()
                 .reportId(saved.getId())
@@ -149,20 +147,41 @@ public class ReportService {
                 .build();
         ReportsIndividual saved = reportsIndividualRepository.save(newReport);
 
-        // 비동기 VLM 생성 지시 (module-ai 호출)
-        try {
-            aiGatewayRestClient.post()
-                    .uri("/internal/llm/reports/individual/{reportId}", saved.getId())
-                    .retrieve()
-                    .toBodilessEntity();
-        } catch (Exception e) {
-            System.err.println("Failed to trigger LLM generation for individual report " + saved.getId() + ": " + e.getMessage());
-        }
+        dispatchAfterCommit(
+                "/internal/llm/reports/individual/{reportId}",
+                saved.getId(),
+                "individual report"
+        );
         
         return IndividualReportResponse.builder()
                 .reportId(saved.getId())
                 .batteryCellId(cell.getId())
                 .status(saved.getStatus().name())
                 .build();
+    }
+
+    private void dispatchAfterCommit(String uri, Long reportId, String reportType) {
+        Runnable dispatch = () -> {
+            try {
+                aiGatewayRestClient.post()
+                        .uri(uri, reportId)
+                        .retrieve()
+                        .toBodilessEntity();
+            } catch (Exception e) {
+                System.err.println("Failed to trigger LLM generation for " + reportType + " " + reportId + ": " + e.getMessage());
+            }
+        };
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            dispatch.run();
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                dispatch.run();
+            }
+        });
     }
 }
