@@ -15,6 +15,7 @@ import com.aivle.big_project.domain.inspection.Inspection;
 import com.aivle.big_project.domain.inspection.InspectionRepository;
 import com.aivle.big_project.domain.report.ReportsIndividual;
 import com.aivle.big_project.domain.report.ReportsIndividualRepository;
+import com.aivle.big_project.api.global.storage.S3ImageUrlService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -38,6 +39,7 @@ public class BatteryCellService {
     private final InspectionImageRepository inspectionImageRepository;
     private final DefectResultRepository defectResultRepository;
     private final ReportsIndividualRepository reportsIndividualRepository;
+    private final S3ImageUrlService s3ImageUrlService;
 
     public PagedResponse<BatteryCellListResponse> getBatteryCells(Pageable pageable) {
         Page<BatteryCell> cells = batteryCellRepository.findAll(pageable);
@@ -177,7 +179,12 @@ public class BatteryCellService {
                                 .inspectionId(inspection.getId())
                                 .inspectionType(inspection.getInspectionType())
                                 .imageType(image.getImageType())
-                                .imageUrl(image.getObjectKey())
+                                .imageUrl(
+                                        s3ImageUrlService.createGetUrl(
+                                                image.getBucketName(),
+                                                image.getObjectKey()
+                                        )
+                                )
                                 .build()))
                 .toList();
 
@@ -195,9 +202,14 @@ public class BatteryCellService {
                                         : null)
                                 .imageType(defect.getImageType())
                                 .defectType(defect.getDefectType())
-                                .imageUrl(defect.getInspectionImage() != null
-                                        ? defect.getInspectionImage().getObjectKey()
-                                        : null)
+                                .imageUrl(
+                                        defect.getInspectionImage() == null
+                                                ? null
+                                                : s3ImageUrlService.createGetUrl(
+                                                defect.getInspectionImage().getBucketName(),
+                                                defect.getInspectionImage().getObjectKey()
+                                        )
+                                )
                                 .confidence(defect.getConfidence())
                                 .bbox(defect.getBbox())
                                 .build()))

@@ -1,6 +1,8 @@
 server:
   port: 8080
-
+aws:
+  s3:
+    region: ${AWS_REGION:ap-northeast-2}
 spring:
   datasource:
     url: jdbc:postgresql://aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require
