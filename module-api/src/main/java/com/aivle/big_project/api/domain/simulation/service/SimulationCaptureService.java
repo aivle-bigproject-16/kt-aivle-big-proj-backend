@@ -2,6 +2,7 @@ package com.aivle.big_project.api.domain.simulation.service;
 
 import com.aivle.big_project.domain.image.BatteryCellImage;
 import com.aivle.big_project.domain.image.BatteryCellImageRepository;
+import com.aivle.big_project.domain.image.CaptureSet;
 import com.aivle.big_project.domain.image.InspectionImage;
 import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.aivle.big_project.domain.inspection.*;
@@ -18,6 +19,8 @@ import java.util.Locale;
 @RequiredArgsConstructor
 @Transactional
 public class SimulationCaptureService {
+
+    private static final String SIMULATION_CELL_PREFIX = "SIM-";
 
     private final InspectionBatchRepository inspectionBatchRepository;
     private final InspectionRepository inspectionRepository;
@@ -49,20 +52,36 @@ public class SimulationCaptureService {
     private void createInspectionImagesFromSource(Inspection inspection) {
         String imageType = inspection.getInspectionType().name();
         int attemptNo = inspection.currentAttemptNo();
+        CaptureSet captureSet = attemptNo == 1
+                ? CaptureSet.INITIAL
+                : CaptureSet.RECAPTURE;
 
         List<BatteryCellImage> sourceImages =
                 batteryCellImageRepository
-                        .findByBatteryCellIdAndImageTypeOrderByIdAsc(
+                        .findByBatteryCellIdAndImageTypeAndCaptureSetOrderByIdAsc(
                                 inspection.getBatteryCell().getId(),
-                                imageType
+                                imageType,
+                                captureSet
                         );
+
+        if (sourceImages.isEmpty()
+                && captureSet == CaptureSet.RECAPTURE
+                && !isSimulationCell(inspection)) {
+            sourceImages = batteryCellImageRepository
+                    .findByBatteryCellIdAndImageTypeAndCaptureSetOrderByIdAsc(
+                            inspection.getBatteryCell().getId(),
+                            imageType,
+                            CaptureSet.INITIAL
+                    );
+        }
 
         if (sourceImages.isEmpty()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "%s 원본 이미지가 없습니다. batteryCellId=%d"
+                    "%s %s 원본 이미지가 없습니다. batteryCellId=%d"
                             .formatted(
                                     imageType,
+                                    captureSet,
                                     inspection.getBatteryCell().getId()
                             )
             );
@@ -90,6 +109,11 @@ public class SimulationCaptureService {
 
             inspectionImageRepository.save(inspectionImage);
         }
+    }
+
+    private boolean isSimulationCell(Inspection inspection) {
+        return inspection.getBatteryCell().getCellSerialNo()
+                .startsWith(SIMULATION_CELL_PREFIX);
     }
 
     private String buildObjectKey(

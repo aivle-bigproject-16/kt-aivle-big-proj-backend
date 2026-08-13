@@ -16,6 +16,7 @@ dependencies {
 
     // Swagger UI (Springdoc)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4'
-    implementation platform('software.amazon.awssdk:bom:2.25.60')
-    implementation 'software.amazon.awssdk:s3'
+    // S3Template and the AWS SDK S3 client are both provided by this starter.
+    implementation platform("io.awspring.cloud:spring-cloud-aws-dependencies:3.1.1")
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-s3'
 }
