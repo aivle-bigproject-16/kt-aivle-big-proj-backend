@@ -24,7 +24,7 @@ public class S3FileStorageService {
     private String bucketName;
 
     // 허용된 확장자 및 MIME 타입 (화이트리스트)
-    private static final List<String> ALLOWED_EXTENSIONS = List.of("pdf", "png", "jpg", "jpeg");
+    private static final List<String> ALLOWED_EXTENSIONS = List.of("pdf", "png", "jpg", "jpeg", "docx");
     private static final List<String> ALLOWED_MIME_TYPES = List.of("application/pdf", "image/png", "image/jpeg");
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
