@@ -22,6 +22,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.time.LocalDate;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.BitSet;
 import java.awt.Rectangle;
 import com.aivle.big_project.domain.image.InspectionImage;
@@ -41,18 +43,33 @@ public class LlmAsyncService {
 
     // 최대 2개의 스레드만 동시 접근 허용
     private final Semaphore semaphore = new Semaphore(2);
+    
+    // 현재 JVM 메모리 큐(세마포어 대기 + 실행 중)에 있는 리포트 ID 추적
+    private final Set<Long> inProgressDaily = ConcurrentHashMap.newKeySet();
+    private final Set<Long> inProgressIndividual = ConcurrentHashMap.newKeySet();
+
+    public boolean isDailyInProgress(Long id) {
+        return inProgressDaily.contains(id);
+    }
+
+    public boolean isIndividualInProgress(Long id) {
+        return inProgressIndividual.contains(id);
+    }
 
     @Async
     public void generateDailyReportAsync(Long reportId) {
-//        log.info("[Async] Starting daily report generation for ID: {}", reportId);
+        // 큐에 진입함을 표시 (스케줄러가 건드리지 않도록)
+        if (!inProgressDaily.add(reportId)) {
+            log.info("Daily report {} is already in progress queue. Skipping duplicate request.", reportId);
+            return;
+        }
 
         try {
-            if (!semaphore.tryAcquire(5, TimeUnit.SECONDS)) {
-                log.warn("Semaphore full. Aborting daily report {} for now (will be retried by scheduler)", reportId);
-                return;
-            }
+            // 세마포어 자리가 날 때까지 무한 대기 (즉시 취소되지 않고 큐처럼 동작)
+            semaphore.acquire();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            inProgressDaily.remove(reportId);
             return;
         }
 
@@ -122,20 +139,24 @@ public class LlmAsyncService {
             log.error("[Async] Error during daily report generation", e);
         } finally {
             semaphore.release();
+            inProgressDaily.remove(reportId);
         }
     }
 
     @Async
     public void generateIndividualReportAsync(Long reportId) {
-//        log.info("[Async] Starting individual report generation for ID: {}", reportId);
+        // 큐에 진입함을 표시 (스케줄러가 건드리지 않도록)
+        if (!inProgressIndividual.add(reportId)) {
+            log.info("Individual report {} is already in progress queue. Skipping duplicate request.", reportId);
+            return;
+        }
 
         try {
-            if (!semaphore.tryAcquire(5, TimeUnit.SECONDS)) {
-                log.warn("Semaphore full. Aborting individual report {} for now (will be retried by scheduler)", reportId);
-                return;
-            }
+            // 세마포어 자리가 날 때까지 무한 대기
+            semaphore.acquire();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            inProgressIndividual.remove(reportId);
             return;
         }
 
@@ -279,6 +300,7 @@ public class LlmAsyncService {
             log.error("[Async] Error during individual report generation", e);
         } finally {
             semaphore.release();
+            inProgressIndividual.remove(reportId);
         }
     }
 
