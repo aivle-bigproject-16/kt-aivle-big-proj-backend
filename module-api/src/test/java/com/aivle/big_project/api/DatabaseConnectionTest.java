@@ -1,6 +1,7 @@
 package com.aivle.big_project.api;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import javax.sql.DataSource;
@@ -9,6 +10,7 @@ import java.sql.Connection;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@Tag("integration")
 public class DatabaseConnectionTest {
 
     @Autowired
