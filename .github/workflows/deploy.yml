@@ -1,0 +1,130 @@
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ap-northeast-2
+  API_ECR_REPOSITORY: kt-aivle-big-proj-backend
+  AI_ECR_REPOSITORY: kt-aivle-big-proj-backend-ai
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Java
+        uses: actions/setup-java@v5.7.0
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Test
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon test -PexcludeIntegrationTests
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: "825555019742"
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2.1.6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Build and push module-api
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.API_ECR_REPOSITORY }}:${{ github.sha }}
+          build-args: MODULE=module-api
+          cache-from: type=gha,scope=backend-api
+          cache-to: type=gha,mode=max,scope=backend-api
+
+      - name: Build and push module-ai
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.AI_ECR_REPOSITORY }}:${{ github.sha }}
+          build-args: MODULE=module-ai
+          cache-from: type=gha,scope=backend-ai
+          cache-to: type=gha,mode=max,scope=backend-ai
+
+      - name: Deploy through Systems Manager
+        env:
+          INSTANCE_ID: ${{ vars.AWS_DEPLOY_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+
+          deploy_service() {
+            local service="$1"
+            local parameters
+            local command_id
+            local status
+
+            parameters=$(jq -cn \
+              --arg service "$service" \
+              --arg tag "$GITHUB_SHA" \
+              '{Service: [$service], ImageTag: [$tag]}')
+
+            command_id=$(aws ssm send-command \
+              --region "$AWS_REGION" \
+              --instance-ids "$INSTANCE_ID" \
+              --document-name AivleBigProjectDeployService \
+              --comment "Deploy $GITHUB_REPOSITORY:$service@$GITHUB_SHA" \
+              --parameters "$parameters" \
+              --query 'Command.CommandId' \
+              --output text)
+
+            status=Pending
+            for _ in $(seq 1 180); do
+              status=$(aws ssm get-command-invocation \
+                --region "$AWS_REGION" \
+                --command-id "$command_id" \
+                --instance-id "$INSTANCE_ID" \
+                --query 'Status' \
+                --output text 2>/dev/null || printf 'Pending')
+
+              case "$status" in
+                Success|Cancelled|TimedOut|Failed|Cancelling) break ;;
+              esac
+              sleep 10
+            done
+
+            aws ssm get-command-invocation \
+              --region "$AWS_REGION" \
+              --command-id "$command_id" \
+              --instance-id "$INSTANCE_ID"
+
+            test "$status" = Success
+          }
+
+          deploy_service backend-ai
+          deploy_service backend

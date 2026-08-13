@@ -46,6 +46,10 @@ subprojects {
 	}
 
 	tasks.named('test') {
-		useJUnitPlatform()
+		useJUnitPlatform {
+			if (project.hasProperty('excludeIntegrationTests')) {
+				excludeTags 'integration'
+			}
+		}
 	}
 }
