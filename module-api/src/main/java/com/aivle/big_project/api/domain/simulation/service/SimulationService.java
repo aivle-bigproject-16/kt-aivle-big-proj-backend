@@ -18,9 +18,7 @@ import com.aivle.big_project.domain.image.InspectionImage;
 import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.aivle.big_project.api.domain.simulation.event.SimulationStartedEvent;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -34,6 +32,8 @@ import java.time.Instant;
 @RequiredArgsConstructor
 @Transactional
 public class SimulationService {
+
+    private static final String SIMULATION_CELL_PREFIX = "SIM-";
 
     private final SimulationRunRepository simulationRunRepository;
     private final BatteryCellRepository batteryCellRepository;
@@ -62,20 +62,16 @@ public class SimulationService {
             );
         }
 
-        Page<BatteryCell> batteryCellPage = batteryCellRepository.findAll(
-                PageRequest.of(
-                        0,
-                        request.batteryCellCount(),
-                        Sort.by("id").ascending()
-                )
-        );
-
-        List<BatteryCell> batteryCells = batteryCellPage.getContent();
+        List<BatteryCell> batteryCells = batteryCellRepository
+                .findByCellSerialNoStartingWithOrderByCellSerialNoAsc(
+                        SIMULATION_CELL_PREFIX,
+                        PageRequest.of(0, request.batteryCellCount())
+                );
 
         if (batteryCells.size() < request.batteryCellCount()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "검사할 배터리 셀 수가 부족합니다."
+                    "SIM 시뮬레이션 셀 수가 부족합니다."
             );
         }
 

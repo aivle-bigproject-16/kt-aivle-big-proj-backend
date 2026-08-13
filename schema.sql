@@ -3283,6 +3283,7 @@ CREATE TABLE public.battery_cell_image (
     id bigint NOT NULL,
     battery_cell_id bigint NOT NULL,
     image_type character varying(20) NOT NULL,
+    capture_set character varying(20) DEFAULT 'INITIAL'::character varying NOT NULL,
     bucket_name character varying(100) NOT NULL,
     object_key character varying(500) NOT NULL,
     storage_type character varying(30) NOT NULL,
@@ -4271,6 +4272,14 @@ ALTER TABLE ONLY public.battery_cell_image
 
 
 --
+-- Name: battery_cell_image ck_battery_cell_image_capture_set; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.battery_cell_image
+    ADD CONSTRAINT ck_battery_cell_image_capture_set CHECK (((capture_set)::text = ANY ((ARRAY['INITIAL'::character varying, 'RECAPTURE'::character varying, 'ARCHIVED'::character varying])::text[])));
+
+
+--
 -- Name: battery_cell battery_cell_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4942,6 +4951,13 @@ CREATE INDEX idx_api_log_created_at ON public.api_log USING btree (created_at);
 --
 
 CREATE INDEX idx_battery_cell_serial_no ON public.battery_cell USING btree (cell_serial_no);
+
+
+--
+-- Name: ix_battery_cell_image_capture_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_battery_cell_image_capture_source ON public.battery_cell_image USING btree (battery_cell_id, image_type, capture_set, id);
 
 
 --

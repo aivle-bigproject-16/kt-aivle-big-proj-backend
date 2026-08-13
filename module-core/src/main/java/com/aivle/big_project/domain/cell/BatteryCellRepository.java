@@ -1,13 +1,20 @@
 package com.aivle.big_project.domain.cell;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
 import java.util.List;
 import java.util.Optional;
 
 public interface BatteryCellRepository extends JpaRepository<BatteryCell, Long> {
     Optional<BatteryCell> findByCellSerialNo(String cellSerialNo);
+
+    List<BatteryCell> findByCellSerialNoStartingWithOrderByCellSerialNoAsc(
+            String prefix,
+            Pageable pageable
+    );
 
     @Query(value = """
         WITH batch_summary AS (

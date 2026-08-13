@@ -34,6 +34,10 @@ public class BatteryCellImage {
     @Column(name = "image_type", length = 20, nullable = false)
     private String imageType; // CT 또는 RGB
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "capture_set", length = 20, nullable = false)
+    private CaptureSet captureSet = CaptureSet.INITIAL;
+
     @Column(name = "bucket_name", length = 100, nullable = false)
     private String bucketName;
 
