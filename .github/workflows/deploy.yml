@@ -98,7 +98,7 @@ jobs:
               --region "$AWS_REGION" \
               --instance-ids "$INSTANCE_ID" \
               --document-name AivleBigProjectDeployService \
-              --comment "Deploy $GITHUB_REPOSITORY:$service@$GITHUB_SHA" \
+              --comment "Deploy $service@$GITHUB_SHA" \
               --parameters "$parameters" \
               --query 'Command.CommandId' \
               --output text)
