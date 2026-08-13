@@ -10,7 +10,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface InspectionRepository extends JpaRepository<Inspection, Long> {
-    List<Inspection> findByBatteryCellIdAndFinalLabelIn(Long batteryCellId, List<FinalLabel> labels);
+    List<Inspection> findByBatteryCellIdAndFinalLabelIsNotNullOrderByAnalyzedAtDesc(
+            Long batteryCellId
+    );
     
     // 3. 배터리 셀 ID와 특정 라벨로 가장 최근 검사 조회 (LLM 개별 리포트용)
     java.util.Optional<Inspection> findTopByBatteryCellIdAndFinalLabelOrderByCreatedAtDesc(Long batteryCellId, FinalLabel finalLabel);

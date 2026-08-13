@@ -10,7 +10,6 @@ import com.aivle.big_project.domain.defect.DefectResult;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
 import com.aivle.big_project.domain.image.InspectionImage;
 import com.aivle.big_project.domain.image.InspectionImageRepository;
-import com.aivle.big_project.domain.inspection.FinalLabel;
 import com.aivle.big_project.domain.inspection.Inspection;
 import com.aivle.big_project.domain.inspection.InspectionRepository;
 import com.aivle.big_project.domain.report.ReportsIndividual;
@@ -64,7 +63,8 @@ public class BatteryCellService {
                 .updatedAt(rep.getUpdatedAt())
                 .build()).toList();
 
-        List<Inspection> inspections = inspectionRepository.findByBatteryCellIdAndFinalLabelIn(id, List.of(FinalLabel.REJECT, FinalLabel.FAIL));
+        List<Inspection> inspections = inspectionRepository
+                .findByBatteryCellIdAndFinalLabelIsNotNullOrderByAnalyzedAtDesc(id);
         if (inspections.isEmpty()) {
             return BatteryCellDetailResponse.builder()
                     .batteryCellId(cell.getId())
