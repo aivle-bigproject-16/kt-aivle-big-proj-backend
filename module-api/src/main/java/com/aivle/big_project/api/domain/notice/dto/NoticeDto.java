@@ -24,14 +24,14 @@ public class NoticeDto {
             LocalDateTime createdAt,
             LocalDateTime updatedAt
     ) {
-        public static Response from(Notice notice) {
+        public static Response from(Notice notice, String downloadUrl) {
             return new Response(
                     notice.getId(),
                     notice.getTitle(),
                     notice.getContent(),
                     notice.getAuthor().getName(),
                     notice.getAuthor().getEmail(),
-                    notice.getFileUrl(),
+                    downloadUrl,
                     notice.getOriginalFileName(),
                     notice.getCreatedAt(),
                     notice.getUpdatedAt()
