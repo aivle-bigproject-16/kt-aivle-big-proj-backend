@@ -10,6 +10,7 @@ import com.aivle.big_project.domain.defect.DefectResult;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
 import com.aivle.big_project.domain.image.InspectionImage;
 import com.aivle.big_project.domain.image.InspectionImageRepository;
+import com.aivle.big_project.domain.inspection.FinalLabel;
 import com.aivle.big_project.domain.inspection.Inspection;
 import com.aivle.big_project.domain.inspection.InspectionRepository;
 import com.aivle.big_project.domain.report.ReportsIndividual;
@@ -20,8 +21,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,16 +40,36 @@ public class BatteryCellService {
     private final ReportsIndividualRepository reportsIndividualRepository;
 
     public PagedResponse<BatteryCellListResponse> getBatteryCells(Pageable pageable) {
-        Page<BatteryCellWithLatestInspectionProjection> cells = batteryCellRepository.findBatteryCellsWithLatestInspection(pageable);
-        Page<BatteryCellListResponse> responsePage = cells.map(proj -> new BatteryCellListResponse(
-                proj.getInspectionId(),
-                proj.getBatteryCellId(),
-                proj.getCellSerialNo(),
-                proj.getModelName(),
-                proj.getCellType(),
-                proj.getLatestFinalLabel(),
-                proj.getLatestAnalyzedAt()
-        ));
+        Page<BatteryCell> cells = batteryCellRepository.findAll(pageable);
+        List<Long> batteryCellIds = cells.stream()
+                .map(BatteryCell::getId)
+                .toList();
+
+        Map<Long, BatteryCellWithLatestInspectionProjection> latestSummaryByCell =
+                batteryCellIds.isEmpty()
+                        ? Map.of()
+                        : batteryCellRepository
+                                .findLatestInspectionSummaryByBatteryCellIds(batteryCellIds)
+                                .stream()
+                                .collect(Collectors.toMap(
+                                        BatteryCellWithLatestInspectionProjection::getBatteryCellId,
+                                        projection -> projection
+                                ));
+
+        Page<BatteryCellListResponse> responsePage = cells.map(cell -> {
+            BatteryCellWithLatestInspectionProjection summary = latestSummaryByCell.get(cell.getId());
+
+            return new BatteryCellListResponse(
+                    summary == null ? null : summary.getInspectionId(),
+                    summary == null ? null : summary.getBatchId(),
+                    cell.getId(),
+                    cell.getCellSerialNo(),
+                    cell.getModelName(),
+                    cell.getCellType(),
+                    summary == null ? null : FinalLabel.valueOf(summary.getLatestFinalLabel()),
+                    summary == null ? null : summary.getLatestAnalyzedAt()
+            );
+        });
         return PagedResponse.from(responsePage);
     }
 
@@ -63,9 +87,26 @@ public class BatteryCellService {
                 .updatedAt(rep.getUpdatedAt())
                 .build()).toList();
 
-        List<Inspection> inspections = inspectionRepository
-                .findByBatteryCellIdAndFinalLabelIsNotNullOrderByAnalyzedAtDesc(id);
-        if (inspections.isEmpty()) {
+        List<Inspection> inspections = inspectionRepository.findAllByBatteryCellIdOrderByBatchDesc(id);
+
+        Map<Long, List<Inspection>> inspectionsByBatch = inspections.stream()
+                .collect(Collectors.groupingBy(
+                        inspection -> inspection.getInspectionBatch().getId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        Map<Long, List<Inspection>> completedInspectionsByBatch = inspectionsByBatch.entrySet().stream()
+                .filter(entry -> entry.getValue().stream()
+                        .allMatch(inspection -> inspection.getFinalLabel() != null))
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (first, second) -> first,
+                        LinkedHashMap::new
+                ));
+
+        if (completedInspectionsByBatch.isEmpty()) {
             return BatteryCellDetailResponse.builder()
                     .batteryCellId(cell.getId())
                     .cellSerialNo(cell.getCellSerialNo())
@@ -81,7 +122,10 @@ public class BatteryCellService {
                     .build();
         }
 
-        List<Long> inspectionIds = inspections.stream().map(Inspection::getId).toList();
+        List<Long> inspectionIds = completedInspectionsByBatch.values().stream()
+                .flatMap(List::stream)
+                .map(Inspection::getId)
+                .toList();
 
         Map<Long, List<InspectionImage>> imagesByInspection = inspectionImageRepository.findByInspectionIdIn(inspectionIds)
                 .stream().collect(Collectors.groupingBy(img -> img.getInspection().getId()));
@@ -89,34 +133,15 @@ public class BatteryCellService {
         Map<Long, List<DefectResult>> defectsByInspection = defectResultRepository.findByInspectionIdIn(inspectionIds)
                 .stream().collect(Collectors.groupingBy(def -> def.getInspection().getId()));
 
-        List<BatteryCellDetailResponse.InspectionDto> inspectionDtos = inspections.stream().map(ins -> {
-            List<BatteryCellDetailResponse.InspectionImageDto> imageDtos = imagesByInspection.getOrDefault(ins.getId(), List.of())
-                    .stream().map(img -> BatteryCellDetailResponse.InspectionImageDto.builder()
-                            .imageId(img.getId())
-                            .imageType(img.getImageType())
-                            .imageUrl(img.getObjectKey()) // Using objectKey as URL for now
-                            .build()).toList();
-
-            List<BatteryCellDetailResponse.DefectResultDto> defectDtos = defectsByInspection.getOrDefault(ins.getId(), List.of())
-                    .stream().map(def -> BatteryCellDetailResponse.DefectResultDto.builder()
-                            .defectResultId(def.getId())
-                            .label(def.getLabel())
-                            .imageId(def.getInspectionImage() != null ? def.getInspectionImage().getId() : null)
-                            .imageType(def.getImageType())
-                            .defectType(def.getDefectType())
-                            .imageUrl(def.getInspectionImage() != null ? def.getInspectionImage().getObjectKey() : null)
-                            .confidence(def.getConfidence())
-                            .bbox(def.getBbox())
-                            .build()).toList();
-
-            return BatteryCellDetailResponse.InspectionDto.builder()
-                    .inspectionId(ins.getId())
-                    .finalLabel(ins.getFinalLabel())
-                    .analyzedAt(ins.getAnalyzedAt())
-                    .image(imageDtos)
-                    .defectResults(defectDtos)
-                    .build();
-        }).toList();
+        List<BatteryCellDetailResponse.InspectionDto> inspectionDtos =
+                completedInspectionsByBatch.entrySet().stream()
+                        .map(entry -> toInspectionDto(
+                                entry.getKey(),
+                                entry.getValue(),
+                                imagesByInspection,
+                                defectsByInspection
+                        ))
+                        .toList();
 
         return BatteryCellDetailResponse.builder()
                 .batteryCellId(cell.getId())
@@ -131,5 +156,82 @@ public class BatteryCellService {
                 .inspections(inspectionDtos)
                 .reports(reportDtos)
                 .build();
+    }
+
+    private BatteryCellDetailResponse.InspectionDto toInspectionDto(
+            Long batchId,
+            List<Inspection> inspections,
+            Map<Long, List<InspectionImage>> imagesByInspection,
+            Map<Long, List<DefectResult>> defectsByInspection
+    ) {
+        List<Long> inspectionIds = inspections.stream()
+                .map(Inspection::getId)
+                .toList();
+
+        List<BatteryCellDetailResponse.InspectionImageDto> imageDtos = inspections.stream()
+                .flatMap(inspection -> imagesByInspection
+                        .getOrDefault(inspection.getId(), List.of())
+                        .stream()
+                        .map(image -> BatteryCellDetailResponse.InspectionImageDto.builder()
+                                .imageId(image.getId())
+                                .inspectionId(inspection.getId())
+                                .inspectionType(inspection.getInspectionType())
+                                .imageType(image.getImageType())
+                                .imageUrl(image.getObjectKey())
+                                .build()))
+                .toList();
+
+        List<BatteryCellDetailResponse.DefectResultDto> defectDtos = inspections.stream()
+                .flatMap(inspection -> defectsByInspection
+                        .getOrDefault(inspection.getId(), List.of())
+                        .stream()
+                        .map(defect -> BatteryCellDetailResponse.DefectResultDto.builder()
+                                .defectResultId(defect.getId())
+                                .inspectionId(inspection.getId())
+                                .attemptNo(defect.getAttemptNo())
+                                .label(defect.getLabel())
+                                .imageId(defect.getInspectionImage() != null
+                                        ? defect.getInspectionImage().getId()
+                                        : null)
+                                .imageType(defect.getImageType())
+                                .defectType(defect.getDefectType())
+                                .imageUrl(defect.getInspectionImage() != null
+                                        ? defect.getInspectionImage().getObjectKey()
+                                        : null)
+                                .confidence(defect.getConfidence())
+                                .bbox(defect.getBbox())
+                                .build()))
+                .toList();
+
+        return BatteryCellDetailResponse.InspectionDto.builder()
+                .batchId(batchId)
+                .inspectionIds(inspectionIds)
+                .finalLabel(aggregateFinalLabel(inspections))
+                .analyzedAt(findLatestAnalyzedAt(inspections))
+                .images(imageDtos)
+                .defectResults(defectDtos)
+                .build();
+    }
+
+    private FinalLabel aggregateFinalLabel(List<Inspection> inspections) {
+        if (inspections.stream()
+                .anyMatch(inspection -> inspection.getFinalLabel() == FinalLabel.FAIL)) {
+            return FinalLabel.FAIL;
+        }
+
+        if (inspections.stream()
+                .anyMatch(inspection -> inspection.getFinalLabel() == FinalLabel.REJECT)) {
+            return FinalLabel.REJECT;
+        }
+
+        return FinalLabel.PASS;
+    }
+
+    private LocalDateTime findLatestAnalyzedAt(List<Inspection> inspections) {
+        return inspections.stream()
+                .map(Inspection::getAnalyzedAt)
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
     }
 }

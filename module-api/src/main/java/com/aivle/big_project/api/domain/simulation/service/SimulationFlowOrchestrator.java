@@ -21,6 +21,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SimulationFlowOrchestrator {
 
+    private static final int MAX_BATCH_CAPTURE_ATTEMPTS = 3;
+    private static final int MIN_CAPTURE_RETRY_DELAY_SECONDS = 3;
+
     private final SimulationService simulationService;
     private final InspectionBatchRepository inspectionBatchRepository;
     private final SimulationCaptureService simulationCaptureService;
@@ -120,17 +123,115 @@ public class SimulationFlowOrchestrator {
                 () -> {
                     simulationService.startBatchCapture(batchId);
 
-                    simulationTaskScheduler.schedule(
-                            () -> completeCaptureAndScheduleNext(
-                                    simulationRunId,
-                                    batchIds,
-                                    batchIndex,
-                                    captureSpeed
-                            ),
-                            Instant.now().plusSeconds(captureSpeed)
+                    scheduleBatchCaptureCompletion(
+                            simulationRunId,
+                            batchIds,
+                            batchIndex,
+                            captureSpeed,
+                            1,
+                            captureSpeed
                     );
                 },
                 Instant.now()
+        );
+    }
+
+    private void scheduleBatchCaptureCompletion(
+            Long simulationRunId,
+            List<Long> batchIds,
+            int batchIndex,
+            int captureSpeed,
+            int attempt,
+            int delaySeconds
+    ) {
+        Long batchId = batchIds.get(batchIndex);
+
+        simulationTaskScheduler.schedule(
+                () -> {
+                    try {
+                        log.info(
+                                "배치 촬영 완료 처리 시작. runId={}, batchId={}, attempt={}/{}",
+                                simulationRunId,
+                                batchId,
+                                attempt,
+                                MAX_BATCH_CAPTURE_ATTEMPTS
+                        );
+
+                        completeCaptureAndScheduleNext(
+                                simulationRunId,
+                                batchIds,
+                                batchIndex,
+                                captureSpeed
+                        );
+
+                        log.info(
+                                "배치 촬영 완료 처리 성공. runId={}, batchId={}, attempt={}/{}",
+                                simulationRunId,
+                                batchId,
+                                attempt,
+                                MAX_BATCH_CAPTURE_ATTEMPTS
+                        );
+                    } catch (Exception exception) {
+                        retryBatchCaptureCompletion(
+                                simulationRunId,
+                                batchIds,
+                                batchIndex,
+                                captureSpeed,
+                                attempt,
+                                exception
+                        );
+                    }
+                },
+                Instant.now().plusSeconds(delaySeconds)
+        );
+    }
+
+    private void retryBatchCaptureCompletion(
+            Long simulationRunId,
+            List<Long> batchIds,
+            int batchIndex,
+            int captureSpeed,
+            int failedAttempt,
+            Exception exception
+    ) {
+        Long batchId = batchIds.get(batchIndex);
+
+        if (failedAttempt >= MAX_BATCH_CAPTURE_ATTEMPTS) {
+            log.error(
+                    "배치 촬영 완료 처리 최종 실패. runId={}, batchId={}, attempts={}",
+                    simulationRunId,
+                    batchId,
+                    failedAttempt,
+                    exception
+            );
+            return;
+        }
+
+        int nextAttempt = failedAttempt + 1;
+        int retryDelaySeconds = Math.max(
+                MIN_CAPTURE_RETRY_DELAY_SECONDS,
+                captureSpeed
+        );
+
+        log.warn(
+                "배치 촬영 완료 처리 실패. 재시도 예약. runId={}, batchId={}, " +
+                        "failedAttempt={}/{}, nextAttempt={}, retryDelaySeconds={}",
+                simulationRunId,
+                batchId,
+                failedAttempt,
+                MAX_BATCH_CAPTURE_ATTEMPTS,
+                nextAttempt,
+                retryDelaySeconds,
+                exception
+        );
+
+        scheduleBatchCaptureCompletion(
+                simulationRunId,
+                batchIds,
+                batchIndex,
+                captureSpeed,
+                nextAttempt,
+                retryDelaySeconds
         );
     }
 

@@ -1,6 +1,7 @@
 package com.aivle.big_project.api.domain.cell.dto;
 
 import com.aivle.big_project.domain.inspection.FinalLabel;
+import com.aivle.big_project.domain.inspection.InspectionType;
 import lombok.Builder;
 import com.fasterxml.jackson.annotation.JsonRawValue;
 
@@ -25,16 +26,19 @@ public record BatteryCellDetailResponse(
 ) {
     @Builder
     public record InspectionDto(
-            Long inspectionId,
+            Long batchId,
+            List<Long> inspectionIds,
             FinalLabel finalLabel,
             LocalDateTime analyzedAt,
-            List<InspectionImageDto> image,
+            List<InspectionImageDto> images,
             List<DefectResultDto> defectResults
     ) {}
 
     @Builder
     public record InspectionImageDto(
             Long imageId,
+            Long inspectionId,
+            InspectionType inspectionType,
             String imageType,
             String imageUrl
     ) {}
@@ -42,6 +46,8 @@ public record BatteryCellDetailResponse(
     @Builder
     public record DefectResultDto(
             Long defectResultId,
+            Long inspectionId,
+            Integer attemptNo,
             String label,
             Long imageId,
             String imageType,
