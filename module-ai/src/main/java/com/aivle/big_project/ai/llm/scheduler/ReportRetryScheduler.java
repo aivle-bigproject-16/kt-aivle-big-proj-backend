@@ -25,10 +25,10 @@ public class ReportRetryScheduler {
     // 2분마다 실행 (120000ms)
     @Scheduled(fixedDelay = 120000)
     public void retryPendingReports() {
-        // 기준 시간: 현재 시간보다 10분 전 (WebClient 6분 타임아웃보다 길게 설정하여 겹침 방지)
-        LocalDateTime threshold = LocalDateTime.now().minusMinutes(10);
+        // 기준 시간: 현재 시간보다 15분 전 (WebClient 10분 타임아웃보다 길게 설정하여 겹침 방지)
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(15);
 
-        log.info("[Scheduler] Checking for PENDING reports older than 10 minutes (Threshold: {})", threshold);
+        log.info("[Scheduler] Checking for PENDING reports older than 15 minutes (Threshold: {})", threshold);
 
         // 1. 개별 리포트 재시도
         List<ReportsIndividual> pendingIndividual = reportsIndividualRepository.findPendingReportsOlderThan(threshold);
