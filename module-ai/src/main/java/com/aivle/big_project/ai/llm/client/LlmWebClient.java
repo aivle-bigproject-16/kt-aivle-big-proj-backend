@@ -40,7 +40,7 @@ public class LlmWebClient {
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(VlmReportResponse.class)
-                .timeout(Duration.ofMinutes(6))
+                .timeout(Duration.ofMinutes(10))
                 .doOnSuccess(response -> logApi(url, request, response, 200, System.currentTimeMillis() - startTime, null))
                 .doOnError(error -> logApi(url, request, null, 500, System.currentTimeMillis() - startTime, error.getMessage()));
     }
@@ -57,7 +57,7 @@ public class LlmWebClient {
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(VlmReportResponse.class)
-                .timeout(Duration.ofMinutes(6))
+                .timeout(Duration.ofMinutes(10))
                 .doOnSuccess(response -> logApi(url, request, response, 200, System.currentTimeMillis() - startTime, null))
                 .doOnError(error -> logApi(url, request, null, 500, System.currentTimeMillis() - startTime, error.getMessage()));
     }
