@@ -145,6 +145,15 @@ public class LlmAsyncService {
 
         } catch (Exception e) {
             log.error("[Async] Error during daily report generation", e);
+            reportsDailyRepository.findById(reportId).ifPresent(report -> {
+                report.updateResult(
+                        ReportStatus.FAILED,
+                        null,
+                        null,
+                        "WORKER_ERROR:" + e.getClass().getSimpleName()
+                );
+                reportsDailyRepository.save(report);
+            });
         } finally {
             semaphore.release();
             inProgressDaily.remove(reportId);
@@ -152,6 +161,7 @@ public class LlmAsyncService {
     }
 
     @Async
+    @Transactional
     public void generateIndividualReportAsync(Long reportId) {
         // 큐에 진입함을 표시 (스케줄러가 건드리지 않도록)
         if (!inProgressIndividual.add(reportId)) {
@@ -306,6 +316,15 @@ public class LlmAsyncService {
 
         } catch (Exception e) {
             log.error("[Async] Error during individual report generation", e);
+            reportsIndividualRepository.findById(reportId).ifPresent(report -> {
+                report.updateResult(
+                        ReportStatus.FAILED,
+                        null,
+                        null,
+                        "WORKER_ERROR:" + e.getClass().getSimpleName()
+                );
+                reportsIndividualRepository.save(report);
+            });
         } finally {
             semaphore.release();
             inProgressIndividual.remove(reportId);

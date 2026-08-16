@@ -18,6 +18,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReportRetryScheduler {
 
+    static final long PENDING_REPORT_STALE_MINUTES = 12;
+
     private final ReportsIndividualRepository reportsIndividualRepository;
     private final ReportsDailyRepository reportsDailyRepository;
     private final LlmAsyncService llmAsyncService;
@@ -25,10 +27,15 @@ public class ReportRetryScheduler {
     // 2분마다 실행 (120000ms)
     @Scheduled(fixedDelay = 120000)
     public void retryPendingReports() {
-        // 기준 시간: 현재 시간보다 15분 전 (WebClient 10분 타임아웃보다 길게 설정하여 겹침 방지)
-        LocalDateTime threshold = LocalDateTime.now().minusMinutes(15);
+        // 일일 리포트 WebClient 10분 타임아웃보다 길어야 실행 중 요청과 겹치지 않는다.
+        LocalDateTime threshold = LocalDateTime.now()
+                .minusMinutes(PENDING_REPORT_STALE_MINUTES);
 
-        log.info("[Scheduler] Checking for PENDING reports older than 15 minutes (Threshold: {})", threshold);
+        log.info(
+                "[Scheduler] Checking for PENDING reports older than {} minutes (Threshold: {})",
+                PENDING_REPORT_STALE_MINUTES,
+                threshold
+        );
 
         // 1. 개별 리포트 재시도
         List<ReportsIndividual> pendingIndividual = reportsIndividualRepository.findPendingReportsOlderThan(threshold);

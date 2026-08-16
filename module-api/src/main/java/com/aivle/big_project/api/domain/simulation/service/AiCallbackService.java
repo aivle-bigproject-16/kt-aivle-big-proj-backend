@@ -73,6 +73,7 @@ public class AiCallbackService {
         }
 
         validateCallback(inspection, callback);
+        validateCallbackStatus(callback);
         validateFailureCallback(callback);
 
         if (isAlreadyProcessed(inspection)) {
@@ -206,6 +207,59 @@ public class AiCallbackService {
                         ? "AI 셀 분석 실패 결과를 저장했습니다."
                         : "AI 셀 분석 결과를 저장했습니다."
         );
+    }
+
+    @Transactional
+    public void failStuckRecapture(
+            Long inspectionId,
+            String failureReason
+    ) {
+        Inspection inspection = inspectionRepository.findById(inspectionId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "고착 복구할 검사를 찾을 수 없습니다."
+                ));
+
+        if (isAlreadyProcessed(inspection)) {
+            return;
+        }
+
+        if (inspection.getStatus() != InspectionStatus.CAPTURING) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "CAPTURING 상태의 검사만 고착 복구할 수 있습니다."
+            );
+        }
+
+        inspection.completeAnalysis(
+                InspectionStatus.FAILED,
+                FinalLabel.FAIL,
+                InspectionFailureType.CAPTURE,
+                summarizeFailureReason(failureReason)
+        );
+
+        InspectionBatch batch = inspection.getInspectionBatch();
+        SimulationRun simulationRun = batch.getSimulationRun();
+
+        completeBatchIfFinished(batch);
+        boolean simulationCompleted =
+                completeSimulationRunIfFinished(simulationRun);
+        Optional<CellProgress> completedCell =
+                completeCellIfFinished(inspection);
+
+        publishCompletedSnapshot(
+                inspection,
+                completedCell,
+                simulationCompleted
+        );
+
+        if (!simulationCompleted) {
+            applicationEventPublisher.publishEvent(
+                    new InspectionAnalysisCompletedEvent(
+                            simulationRun.getId()
+                    )
+            );
+        }
     }
 
     //메서드

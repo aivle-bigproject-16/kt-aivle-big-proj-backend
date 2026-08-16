@@ -18,6 +18,8 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Inspection {
 
+    private static final int FAILURE_REASON_MAX_LENGTH = 100;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -133,7 +135,7 @@ public class Inspection {
         this.status = status;
         this.finalLabel = finalLabel;
         this.failureType = failureType;
-        this.failureReason = failureReason;
+        this.failureReason = summarizeFailureReason(failureReason);
         this.analyzedAt = LocalDateTime.now();
     }
 
@@ -160,9 +162,17 @@ public class Inspection {
         this.captureRetryCount++;
         this.status = InspectionStatus.CAPTURING;
         this.failureType = failureType;
-        this.failureReason = failureReason;
+        this.failureReason = summarizeFailureReason(failureReason);
         this.finalLabel = null;
         this.analyzedAt = null;
         this.aiRequestId = null;
+    }
+
+    private static String summarizeFailureReason(String failureReason) {
+        if (failureReason == null
+                || failureReason.length() <= FAILURE_REASON_MAX_LENGTH) {
+            return failureReason;
+        }
+        return failureReason.substring(0, FAILURE_REASON_MAX_LENGTH);
     }
 }
