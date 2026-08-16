@@ -37,6 +37,9 @@ class SimulationFlowOrchestratorTest {
     private SimulationCaptureService simulationCaptureService;
 
     @Mock
+    private AiCallbackService aiCallbackService;
+
+    @Mock
     private TaskScheduler simulationTaskScheduler;
 
     @Mock
@@ -52,6 +55,7 @@ class SimulationFlowOrchestratorTest {
                 simulationService,
                 inspectionBatchRepository,
                 simulationCaptureService,
+                aiCallbackService,
                 simulationTaskScheduler
         );
 

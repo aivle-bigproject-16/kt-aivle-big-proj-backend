@@ -21,6 +21,9 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class LlmWebClient {
 
+    static final Duration INDIVIDUAL_REPORT_TIMEOUT = Duration.ofMinutes(6);
+    static final Duration DAILY_REPORT_TIMEOUT = Duration.ofMinutes(10);
+
     private final WebClient webClient;
     private final ApiLogRepository apiLogRepository;
     private final ObjectMapper objectMapper;
@@ -40,7 +43,7 @@ public class LlmWebClient {
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(VlmReportResponse.class)
-                .timeout(Duration.ofMinutes(10))
+                .timeout(INDIVIDUAL_REPORT_TIMEOUT)
                 .doOnSuccess(response -> logApi(url, request, response, 200, System.currentTimeMillis() - startTime, null))
                 .doOnError(error -> logApi(url, request, null, 500, System.currentTimeMillis() - startTime, error.getMessage()));
     }
@@ -57,7 +60,7 @@ public class LlmWebClient {
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(VlmReportResponse.class)
-                .timeout(Duration.ofMinutes(10))
+                .timeout(DAILY_REPORT_TIMEOUT)
                 .doOnSuccess(response -> logApi(url, request, response, 200, System.currentTimeMillis() - startTime, null))
                 .doOnError(error -> logApi(url, request, null, 500, System.currentTimeMillis() - startTime, error.getMessage()));
     }

@@ -23,10 +23,12 @@ public class SimulationFlowOrchestrator {
 
     private static final int MAX_BATCH_CAPTURE_ATTEMPTS = 3;
     private static final int MIN_CAPTURE_RETRY_DELAY_SECONDS = 3;
+    private static final int MAX_RECAPTURE_TASK_ATTEMPTS = 3;
 
     private final SimulationService simulationService;
     private final InspectionBatchRepository inspectionBatchRepository;
     private final SimulationCaptureService simulationCaptureService;
+    private final AiCallbackService aiCallbackService;
 
     @Qualifier("simulationTaskScheduler")
     private final TaskScheduler simulationTaskScheduler;
@@ -69,13 +71,23 @@ public class SimulationFlowOrchestrator {
     public void handleInspectionRecaptureRequested(
             InspectionRecaptureRequestedEvent event
     ) {
+        scheduleRecapture(event, 1, event.captureSpeed());
+    }
+
+    private void scheduleRecapture(
+            InspectionRecaptureRequestedEvent event,
+            int attempt,
+            long delaySeconds
+    ) {
         simulationTaskScheduler.schedule(
                 () -> {
                     try {
                         log.info(
-                                "재촬영 시작. inspectionId={}, runId={}",
+                                "재촬영 시작. inspectionId={}, runId={}, attempt={}/{}",
                                 event.inspectionId(),
-                                event.simulationRunId()
+                                event.simulationRunId(),
+                                attempt,
+                                MAX_RECAPTURE_TASK_ATTEMPTS
                         );
 
                         simulationCaptureService.recapture(
@@ -96,14 +108,36 @@ public class SimulationFlowOrchestrator {
                         );
                     } catch (Exception exception) {
                         log.error(
-                                "재촬영 처리 실패. inspectionId={}, runId={}",
+                                "재촬영 처리 실패. inspectionId={}, runId={}, attempt={}/{}",
                                 event.inspectionId(),
                                 event.simulationRunId(),
+                                attempt,
+                                MAX_RECAPTURE_TASK_ATTEMPTS,
                                 exception
+                        );
+
+                        if (attempt < MAX_RECAPTURE_TASK_ATTEMPTS) {
+                            scheduleRecapture(
+                                    event,
+                                    attempt + 1,
+                                    Math.min(1L << attempt, 30L)
+                            );
+                            return;
+                        }
+
+                        aiCallbackService.failStuckRecapture(
+                                event.inspectionId(),
+                                "재촬영 작업이 %d회 실패했습니다: %s: %s"
+                                        .formatted(
+                                                MAX_RECAPTURE_TASK_ATTEMPTS,
+                                                exception.getClass()
+                                                        .getSimpleName(),
+                                                exception.getMessage()
+                                        )
                         );
                     }
                 },
-                Instant.now().plusSeconds(event.captureSpeed())
+                Instant.now().plusSeconds(delaySeconds)
         );
     }
 
