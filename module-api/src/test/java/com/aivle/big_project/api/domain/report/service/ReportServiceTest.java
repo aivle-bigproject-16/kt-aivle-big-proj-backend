@@ -2,7 +2,6 @@ package com.aivle.big_project.api.domain.report.service;
 
 import com.aivle.big_project.api.domain.report.dto.DailyReportCreateRequest;
 import com.aivle.big_project.domain.cell.BatteryCellRepository;
-import com.aivle.big_project.domain.cell.BatteryCell;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
 import com.aivle.big_project.domain.inspection.InspectionRepository;
 import com.aivle.big_project.domain.inspection.Inspection;
@@ -14,6 +13,8 @@ import com.aivle.big_project.domain.report.ReportsDaily;
 import com.aivle.big_project.domain.report.ReportsDailyItemRepository;
 import com.aivle.big_project.domain.report.ReportsDailyRepository;
 import com.aivle.big_project.domain.report.ReportsIndividualRepository;
+import com.aivle.big_project.api.global.storage.S3ImageUrlService;
+import com.aivle.big_project.domain.cell.BatteryCell;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,9 @@ import static org.mockito.Mockito.any;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ReportServiceTest {
+
+    S3ImageUrlService s3ImageUrlService =
+            mock(S3ImageUrlService.class);
 
     @AfterEach
     void clearTransactionSynchronization() {
@@ -62,6 +66,7 @@ class ReportServiceTest {
                 mock(InspectionRepository.class),
                 mock(DefectResultRepository.class),
                 restClient,
+                s3ImageUrlService,
                 new ObjectMapper()
         );
 
@@ -115,6 +120,7 @@ class ReportServiceTest {
                 inspectionRepository,
                 mock(DefectResultRepository.class),
                 restClient,
+                s3ImageUrlService,
                 new ObjectMapper()
         );
 
