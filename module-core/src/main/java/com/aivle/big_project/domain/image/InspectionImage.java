@@ -124,6 +124,9 @@ public class InspectionImage {
         image.contentType = sourceImage.getContentType();
         image.width = sourceImage.getWidth();
         image.height = sourceImage.getHeight();
+        image.volume = sourceImage.getVolume();
+        image.index = sourceImage.getIndex();
+        image.axis = sourceImage.getAxis();
         image.attemptNo = attemptNo;
 
         return image;

@@ -2,8 +2,8 @@ package com.aivle.big_project.ai.llm.service;
 
 import com.aivle.big_project.ai.llm.client.LlmWebClient;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
-import com.aivle.big_project.domain.inspection.Inspection;
 import com.aivle.big_project.domain.inspection.InspectionRepository;
+import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.aivle.big_project.domain.report.ReportStatus;
 import com.aivle.big_project.domain.report.ReportsDailyRepository;
 import com.aivle.big_project.domain.report.ReportsIndividual;
@@ -34,6 +34,8 @@ class LlmAsyncServiceRuntimeTest {
     @Mock
     private InspectionRepository inspectionRepository;
     @Mock
+    private InspectionImageRepository inspectionImageRepository;
+    @Mock
     private LlmWebClient llmWebClient;
     @Mock
     private ObjectMapper objectMapper;
@@ -63,12 +65,8 @@ class LlmAsyncServiceRuntimeTest {
         ReportsIndividual report = org.mockito.Mockito.mock(
                 ReportsIndividual.class
         );
-        Inspection inspection = org.mockito.Mockito.mock(Inspection.class);
         when(reportsIndividualRepository.findById(1L))
                 .thenReturn(Optional.of(report));
-        when(report.getRepresentativeInspection()).thenReturn(inspection);
-        when(inspection.getPointGroups())
-                .thenThrow(new IllegalStateException("lazy relation failed"));
 
         service.generateIndividualReportAsync(1L);
 
