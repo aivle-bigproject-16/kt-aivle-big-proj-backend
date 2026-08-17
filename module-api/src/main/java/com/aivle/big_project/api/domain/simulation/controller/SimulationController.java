@@ -6,6 +6,7 @@ import com.aivle.big_project.api.domain.simulation.service.SimulationService;
 import com.aivle.big_project.api.global.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,6 +26,7 @@ public class SimulationController {
      * 시뮬레이션을 시작하고 초기 진행 상태를 반환합니다.
      */
     @PostMapping
+    @PreAuthorize("!#request.resetBeforeStart() or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<SnapshotResponse>> start(
             @Valid @RequestBody StartRequest request
     ) {
