@@ -9,6 +9,7 @@ import com.aivle.big_project.domain.report.ReportsDaily;
 import com.aivle.big_project.domain.report.ReportsDailyItemRepository;
 import com.aivle.big_project.domain.report.ReportsDailyRepository;
 import com.aivle.big_project.domain.report.ReportsIndividualRepository;
+import com.aivle.big_project.api.global.storage.S3ImageUrlService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -24,6 +25,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ReportServiceTest {
+
+    S3ImageUrlService s3ImageUrlService =
+            mock(S3ImageUrlService.class);
 
     @AfterEach
     void clearTransactionSynchronization() {
@@ -52,7 +56,8 @@ class ReportServiceTest {
                 mock(BatteryCellRepository.class),
                 mock(InspectionRepository.class),
                 mock(DefectResultRepository.class),
-                restClient
+                restClient,
+                s3ImageUrlService
         );
 
         TransactionSynchronizationManager.initSynchronization();
