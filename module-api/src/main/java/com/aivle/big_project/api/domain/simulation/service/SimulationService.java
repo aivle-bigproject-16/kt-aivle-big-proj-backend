@@ -45,6 +45,7 @@ public class SimulationService {
     private final AiGatewayClient aiGatewayClient;
     private final AiGatewayProperties aiGatewayProperties;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final SimulationDataResetter simulationDataResetter;
 
     /**
      * POST /sim
@@ -60,6 +61,10 @@ public class SimulationService {
                     HttpStatus.CONFLICT,
                     "이미 실행 중인 시뮬레이션이 있습니다."
             );
+        }
+
+        if (request.resetBeforeStart()) {
+            simulationDataResetter.reset();
         }
 
         List<BatteryCell> batteryCells = batteryCellRepository
