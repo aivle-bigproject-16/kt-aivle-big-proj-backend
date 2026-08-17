@@ -14,6 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
@@ -39,6 +41,8 @@ class LlmAsyncServiceRuntimeTest {
     private LlmWebClient llmWebClient;
     @Mock
     private ObjectMapper objectMapper;
+    @Mock
+    private PlatformTransactionManager transactionManager;
     @InjectMocks
     private LlmAsyncService service;
 
@@ -52,16 +56,22 @@ class LlmAsyncServiceRuntimeTest {
     }
 
     @Test
-    void individualGenerationRunsInsideTransactionForLazyRelations()
+    void individualGenerationDoesNotHoldTransactionAcrossVlmCall()
             throws NoSuchMethodException {
         assertThat(LlmAsyncService.class
                 .getMethod("generateIndividualReportAsync", Long.class)
                 .isAnnotationPresent(Transactional.class))
-                .isTrue();
+                .isFalse();
     }
 
     @Test
     void unexpectedIndividualWorkerErrorTerminalizesReport() {
+        TransactionStatus transactionStatus = org.mockito.Mockito.mock(
+                TransactionStatus.class
+        );
+        when(transactionManager.getTransaction(
+                org.mockito.ArgumentMatchers.any()
+        )).thenReturn(transactionStatus);
         ReportsIndividual report = org.mockito.Mockito.mock(
                 ReportsIndividual.class
         );
@@ -77,5 +87,6 @@ class LlmAsyncServiceRuntimeTest {
                 "WORKER_ERROR:IllegalStateException"
         );
         verify(reportsIndividualRepository).save(report);
+        verify(transactionManager).rollback(transactionStatus);
     }
 }
