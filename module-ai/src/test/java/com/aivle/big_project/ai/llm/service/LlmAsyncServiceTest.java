@@ -86,7 +86,8 @@ class LlmAsyncServiceTest {
                 inspectionRepository,
                 mock(InspectionImageRepository.class),
                 llmWebClient,
-                new ObjectMapper()
+                new ObjectMapper(),
+                mock(org.springframework.transaction.PlatformTransactionManager.class)
         );
     }
 }

@@ -14,7 +14,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +47,7 @@ public class LlmAsyncService {
     private final InspectionImageRepository inspectionImageRepository;
     private final LlmWebClient llmWebClient;
     private final ObjectMapper objectMapper;
+    private final PlatformTransactionManager transactionManager;
 
     // 최대 2개의 스레드만 동시 접근 허용
     private final Semaphore semaphore = new Semaphore(2);
@@ -165,7 +168,6 @@ public class LlmAsyncService {
     }
 
     @Async
-    @Transactional
     public void generateIndividualReportAsync(Long reportId) {
         // 큐에 진입함을 표시 (스케줄러가 건드리지 않도록)
         if (!inProgressIndividual.add(reportId)) {
@@ -182,7 +184,11 @@ public class LlmAsyncService {
             return;
         }
 
+        TransactionStatus preparationTransaction = null;
         try {
+            preparationTransaction = transactionManager.getTransaction(
+                    new DefaultTransactionDefinition()
+            );
             ReportsIndividual report = reportsIndividualRepository.findById(reportId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 개별 리포트입니다."));
 
@@ -314,6 +320,9 @@ public class LlmAsyncService {
                     outcome.failureReason()
             );
 
+            transactionManager.commit(preparationTransaction);
+            preparationTransaction = null;
+
             try {
                 VlmReportResponse response = llmWebClient.requestIndividualReport(request, reportId).block();
                 if (response != null) {
@@ -332,6 +341,10 @@ public class LlmAsyncService {
             reportsIndividualRepository.save(report);
 
         } catch (Exception e) {
+            if (preparationTransaction != null
+                    && !preparationTransaction.isCompleted()) {
+                transactionManager.rollback(preparationTransaction);
+            }
             log.error("[Async] Error during individual report generation", e);
             reportsIndividualRepository.findById(reportId).ifPresent(report -> {
                 report.updateResult(
