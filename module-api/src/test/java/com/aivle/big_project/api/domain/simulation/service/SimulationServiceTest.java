@@ -40,6 +40,7 @@ class SimulationServiceTest {
     @Mock private AiGatewayProperties aiGatewayProperties;
     @Mock private ApplicationEventPublisher applicationEventPublisher;
     @Mock private BatteryCell batteryCell;
+    @Mock private SimulationDataResetter simulationDataResetter;
 
     private SimulationService service;
 
@@ -55,7 +56,8 @@ class SimulationServiceTest {
                 inspectionImageRepository,
                 aiGatewayClient,
                 aiGatewayProperties,
-                applicationEventPublisher
+                applicationEventPublisher,
+                simulationDataResetter
         );
     }
 
@@ -68,7 +70,7 @@ class SimulationServiceTest {
                 ))
                 .thenReturn(List.of(batteryCell));
 
-        assertThatThrownBy(() -> service.start(new StartRequest(5, 20, 100)))
+        assertThatThrownBy(() -> service.start(new StartRequest(5, 20, 100,false)))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("SIM 시뮬레이션 셀 수가 부족합니다");
 

@@ -20,7 +20,8 @@ public final class SimulationDto {
     public record StartRequest(
             @Positive int batchSize,
             @Positive int batteryCellCount,
-            @Positive int captureSpeed
+            @Positive int captureSpeed,
+            boolean resetBeforeStart
     ) {
     }
 
