@@ -5,6 +5,8 @@ import com.aivle.big_project.ai.llm.dto.*;
 import com.aivle.big_project.domain.defect.DefectResult;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
 import com.aivle.big_project.domain.inspection.FinalLabel;
+import com.aivle.big_project.domain.inspection.Inspection;
+import com.aivle.big_project.domain.inspection.InspectionStatus;
 import com.aivle.big_project.domain.report.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,7 +14,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +32,7 @@ import java.util.Set;
 import java.util.BitSet;
 import java.awt.Rectangle;
 import com.aivle.big_project.domain.image.InspectionImage;
+import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 
 @Slf4j
@@ -39,8 +44,10 @@ public class LlmAsyncService {
     private final ReportsIndividualRepository reportsIndividualRepository;
     private final DefectResultRepository defectResultRepository;
     private final com.aivle.big_project.domain.inspection.InspectionRepository inspectionRepository;
+    private final InspectionImageRepository inspectionImageRepository;
     private final LlmWebClient llmWebClient;
     private final ObjectMapper objectMapper;
+    private final PlatformTransactionManager transactionManager;
 
     // 최대 2개의 스레드만 동시 접근 허용
     private final Semaphore semaphore = new Semaphore(2);
@@ -161,7 +168,6 @@ public class LlmAsyncService {
     }
 
     @Async
-    @Transactional
     public void generateIndividualReportAsync(Long reportId) {
         // 큐에 진입함을 표시 (스케줄러가 건드리지 않도록)
         if (!inProgressIndividual.add(reportId)) {
@@ -178,28 +184,39 @@ public class LlmAsyncService {
             return;
         }
 
+        TransactionStatus preparationTransaction = null;
         try {
+            preparationTransaction = transactionManager.getTransaction(
+                    new DefaultTransactionDefinition()
+            );
             ReportsIndividual report = reportsIndividualRepository.findById(reportId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 개별 리포트입니다."));
 
             report.markAsDispatched();
             reportsIndividualRepository.saveAndFlush(report);
 
-            List<List<Double>> pointGroups = new ArrayList<>();
-            if (report.getRepresentativeInspection() != null && report.getRepresentativeInspection().getPointGroups() != null) {
-                try {
-                    pointGroups = objectMapper.readValue(
-                            report.getRepresentativeInspection().getPointGroups(),
-                            new TypeReference<List<List<Double>>>() {}
-                    );
-                } catch (Exception e) {
-                    log.warn("Failed to parse pointGroups for inspection {}", report.getRepresentativeInspection().getId());
-                }
+            List<Long> sourceInspectionIds = resolveSourceInspectionIds(report);
+            List<Inspection> sourceInspections = inspectionRepository.findAllById(sourceInspectionIds);
+            if (sourceInspections.isEmpty()) {
+                throw new IllegalStateException("리포트에 연결된 검사가 없습니다.");
             }
+            InspectionOutcome outcome = summarizeOutcome(sourceInspections);
+
+            List<InspectionImage> inspectionImages =
+                    inspectionImageRepository.findByInspectionIdIn(sourceInspectionIds);
+            List<DefectResult> allResults =
+                    defectResultRepository.findByInspectionIdIn(sourceInspectionIds);
+            List<DefectResult> actualDefects = allResults.stream()
+                    .filter(d -> d.getInspectionImage() != null)
+                    .filter(d -> d.getDefectType() != null)
+                    .filter(d -> d.getBbox() != null && !d.getBbox().isBlank())
+                    .toList();
+
+            List<List<Double>> pointGroups = readPointGroups(sourceInspections);
 
             List<VlmImageDefectInfo> defectInfoList = new ArrayList<>();
             boolean hasCtData = false;
-            int totalImages = 0;
+            int totalImages = inspectionImages.size();
 
             double ctRatioSum = 0.0;
             double ctRatioMax = 0.0;
@@ -207,24 +224,23 @@ public class LlmAsyncService {
             int ctSliceCount = 0;
 
             long rgbDefectPixels = 0;
-            long rgbTotalPixels = 0;
+            long rgbTotalPixels = inspectionImages.stream()
+                    .filter(i -> "RGB".equalsIgnoreCase(i.getImageType()))
+                    .filter(i -> i.getWidth() != null && i.getHeight() != null)
+                    .mapToLong(i -> (long) i.getWidth() * i.getHeight())
+                    .sum();
+            hasCtData = inspectionImages.stream()
+                    .anyMatch(i -> "CT".equalsIgnoreCase(i.getImageType()));
 
-            if (report.getRepresentativeInspection() != null) {
-                List<DefectResult> defects = defectResultRepository.findByInspectionIdIn(List.of(report.getRepresentativeInspection().getId()));
-                
-                Map<Long, List<DefectResult>> defectsByImage = defects.stream()
-                        .filter(d -> d.getInspectionImage() != null)
-                        .collect(Collectors.groupingBy(d -> d.getInspectionImage().getId()));
+            Map<Long, List<DefectResult>> defectsByImage = actualDefects.stream()
+                    .collect(Collectors.groupingBy(d -> d.getInspectionImage().getId()));
 
-                totalImages = defectsByImage.size();
-
-                for (List<DefectResult> group : defectsByImage.values()) {
+            for (List<DefectResult> group : defectsByImage.values()) {
                     String imageType = group.get(0).getImageType();
                     InspectionImage img = group.get(0).getInspectionImage();
                     long unionArea = calculateUnionArea(group);
 
                     if ("CT".equalsIgnoreCase(imageType)) {
-                        hasCtData = true;
                         ctSliceCount++;
                         ctPoreCount += group.size();
                         if (img.getWidth() != null && img.getHeight() != null) {
@@ -239,9 +255,6 @@ public class LlmAsyncService {
                         }
                     } else if ("RGB".equalsIgnoreCase(imageType)) {
                         rgbDefectPixels += unionArea;
-                        if (img.getWidth() != null && img.getHeight() != null) {
-                            rgbTotalPixels += (long) img.getWidth() * img.getHeight();
-                        }
                     }
                     
                     List<String> defectTypes = group.stream()
@@ -251,7 +264,6 @@ public class LlmAsyncService {
                             .toList();
                     
                     defectInfoList.add(new VlmImageDefectInfo(imageType, defectTypes));
-                }
             }
 
             Double ctSeverity = null;
@@ -285,6 +297,12 @@ public class LlmAsyncService {
                     log.warn("Failed to parse cellSizeJson for cell {}", report.getBatteryCell().getId());
                 }
             }
+            if (hasCtData && (cellSize == null || cellSize.size() != 3)) {
+                cellSize = List.of(100.0, 254.0, 871.0);
+            }
+            if (pointGroups.isEmpty() && cellSize != null) {
+                pointGroups = buildPointGroups(actualDefects, cellSize);
+            }
 
             VlmIndividualReportRequest request = new VlmIndividualReportRequest(
                     report.getBatteryCell().getCellSerialNo(),
@@ -294,8 +312,16 @@ public class LlmAsyncService {
                     pointGroups,
                     ctSeverity,
                     rgbSeverity,
-                    defectInfoList
+                    defectInfoList,
+                    sourceInspectionIds,
+                    outcome.finalLabel(),
+                    outcome.status(),
+                    outcome.failureType(),
+                    outcome.failureReason()
             );
+
+            transactionManager.commit(preparationTransaction);
+            preparationTransaction = null;
 
             try {
                 VlmReportResponse response = llmWebClient.requestIndividualReport(request, reportId).block();
@@ -315,6 +341,10 @@ public class LlmAsyncService {
             reportsIndividualRepository.save(report);
 
         } catch (Exception e) {
+            if (preparationTransaction != null
+                    && !preparationTransaction.isCompleted()) {
+                transactionManager.rollback(preparationTransaction);
+            }
             log.error("[Async] Error during individual report generation", e);
             reportsIndividualRepository.findById(reportId).ifPresent(report -> {
                 report.updateResult(
@@ -330,6 +360,121 @@ public class LlmAsyncService {
             inProgressIndividual.remove(reportId);
         }
     }
+
+    private List<Long> resolveSourceInspectionIds(ReportsIndividual report) {
+        if (report.getSourceInspectionIds() != null) {
+            try {
+                List<Long> ids = objectMapper.readValue(
+                        report.getSourceInspectionIds(),
+                        new TypeReference<List<Long>>() {}
+                );
+                if (!ids.isEmpty()) {
+                    return ids;
+                }
+            } catch (Exception e) {
+                throw new IllegalStateException("리포트 검사 출처를 읽을 수 없습니다.", e);
+            }
+        }
+        if (report.getRepresentativeInspection() != null) {
+            return List.of(report.getRepresentativeInspection().getId());
+        }
+        return List.of();
+    }
+
+    private List<List<Double>> readPointGroups(List<Inspection> inspections) {
+        List<List<Double>> result = new ArrayList<>();
+        for (Inspection inspection : inspections) {
+            if (inspection.getPointGroups() == null) {
+                continue;
+            }
+            try {
+                result.addAll(objectMapper.readValue(
+                        inspection.getPointGroups(),
+                        new TypeReference<List<List<Double>>>() {}
+                ));
+            } catch (Exception e) {
+                log.warn("Failed to parse pointGroups for inspection {}", inspection.getId());
+            }
+        }
+        return result;
+    }
+
+    private InspectionOutcome summarizeOutcome(List<Inspection> inspections) {
+        Inspection failed = inspections.stream()
+                .filter(i -> i.getStatus() == InspectionStatus.FAILED)
+                .findFirst()
+                .orElse(null);
+        String finalLabel = failed != null
+                ? "FAIL"
+                : inspections.stream().anyMatch(i -> i.getFinalLabel() == FinalLabel.REJECT)
+                        ? "REJECT" : "PASS";
+        return new InspectionOutcome(
+                finalLabel,
+                failed != null ? "FAILED" : "COMPLETED",
+                failed != null && failed.getFailureType() != null
+                        ? failed.getFailureType().name() : null,
+                failed != null ? failed.getFailureReason() : null
+        );
+    }
+
+    private List<List<Double>> buildPointGroups(
+            List<DefectResult> defects,
+            List<Double> cellSize
+    ) {
+        List<List<Double>> points = new ArrayList<>();
+        for (DefectResult defect : defects) {
+            InspectionImage image = defect.getInspectionImage();
+            if (!"CT".equalsIgnoreCase(defect.getImageType())
+                    || image == null
+                    || image.getAxis() == null
+                    || image.getIndex() == null
+                    || image.getVolume() == null
+                    || image.getVolume() <= 0
+                    || image.getWidth() == null
+                    || image.getHeight() == null
+                    || image.getWidth() <= 0
+                    || image.getHeight() <= 0) {
+                continue;
+            }
+            try {
+                JsonNode bbox = objectMapper.readTree(defect.getBbox());
+                double horizontal = clamp01(
+                        (bbox.get("x").asDouble() + bbox.get("width").asDouble() / 2.0)
+                                / image.getWidth()
+                );
+                double vertical = clamp01(
+                        (bbox.get("y").asDouble() + bbox.get("height").asDouble() / 2.0)
+                                / image.getHeight()
+                );
+                double slice = clamp01(
+                        (image.getIndex() - 0.5) / (double) image.getVolume()
+                );
+                double a = cellSize.get(0);
+                double b = cellSize.get(1);
+                double c = cellSize.get(2);
+                points.add(switch (image.getAxis().toLowerCase()) {
+                    case "x" -> List.of(slice * a, horizontal * b, vertical * c);
+                    case "y" -> List.of(horizontal * a, slice * b, vertical * c);
+                    case "z" -> List.of(horizontal * a, vertical * b, slice * c);
+                    default -> throw new IllegalArgumentException("unknown CT axis");
+                });
+            } catch (Exception e) {
+                log.warn("Failed to build CT point for defect {}", defect.getId());
+            }
+        }
+        return points;
+    }
+
+    private double clamp01(double value) {
+        return Math.max(0.0, Math.min(1.0, value));
+    }
+
+    private record InspectionOutcome(
+            String finalLabel,
+            String status,
+            String failureType,
+            String failureReason
+    ) {}
 
     private long calculateUnionArea(List<DefectResult> defects) {
         if (defects == null || defects.isEmpty()) return 0;

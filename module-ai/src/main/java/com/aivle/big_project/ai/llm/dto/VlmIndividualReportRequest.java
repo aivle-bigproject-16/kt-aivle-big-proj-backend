@@ -10,5 +10,10 @@ public record VlmIndividualReportRequest(
     List<List<Double>> pointGroups,
     Double ctVoidRatio,
     Double rgbDefectRate,
-    List<VlmImageDefectInfo> defectInfo
+    List<VlmImageDefectInfo> defectInfo,
+    List<Long> sourceInspectionIds,
+    String finalLabel,
+    String inspectionStatus,
+    String failureType,
+    String failureReason
 ) {}

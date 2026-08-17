@@ -11,6 +11,8 @@ public record ImageMappingDto(
         Long volume,
         Long index,
         String axis,
+        Integer imageWidth,
+        Integer imageHeight,
         @JsonRawValue String bbox
 ) {
 }

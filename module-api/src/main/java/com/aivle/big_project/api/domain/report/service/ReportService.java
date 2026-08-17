@@ -8,9 +8,14 @@ import com.aivle.big_project.domain.defect.DefectResult;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
 import com.aivle.big_project.domain.inspection.FinalLabel;
 import com.aivle.big_project.domain.inspection.Inspection;
+import com.aivle.big_project.domain.inspection.InspectionStatus;
+import com.aivle.big_project.domain.inspection.InspectionType;
 import com.aivle.big_project.domain.inspection.InspectionRepository;
 import com.aivle.big_project.domain.report.*;
 import com.aivle.big_project.api.global.storage.S3ImageUrlService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +28,7 @@ import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -37,6 +43,7 @@ public class ReportService {
     private final DefectResultRepository defectResultRepository;
     private final RestClient aiGatewayRestClient;
     private final S3ImageUrlService s3ImageUrlService;
+    private final ObjectMapper objectMapper;
 
     public PagedResponse<DailyReportListResponse> getDailyReports(Pageable pageable) {
         Page<ReportsDaily> reports = reportsDailyRepository.findAll(pageable);
@@ -63,69 +70,82 @@ public class ReportService {
                         new IllegalArgumentException("존재하지 않는 개별 리포트입니다.")
                 );
 
-        Inspection representativeInspection = report.getRepresentativeInspection();
+        Inspection representativeInspection =
+                report.getRepresentativeInspection();
 
         if (representativeInspection == null) {
-            return IndividualReportDetailResponse.of(report, List.of());
+            return IndividualReportDetailResponse.of(
+                    report,
+                    List.of(),
+                    null,
+                    null,
+                    null,
+                    null
+            );
         }
-
-        List<Long> inspectionIds;
 
         /*
-         * 과거 데이터 등에서 배치 연결이 없는 경우에는
-         * 기존 방식대로 대표 Inspection 한 건만 조회합니다.
+         * main의 기능:
+         * 리포트에 포함해야 할 같은 셀·같은 배치의
+         * CT/RGB Inspection을 모두 결정합니다.
          */
-        if (representativeInspection.getInspectionBatch() == null
-                || representativeInspection.getBatteryCell() == null) {
-            inspectionIds = List.of(representativeInspection.getId());
-        } else {
-            Long inspectionBatchId =
-                    representativeInspection.getInspectionBatch().getId();
+        List<Inspection> sourceInspections =
+                resolveSourceInspections(report);
 
-            Long batteryCellId =
-                    representativeInspection.getBatteryCell().getId();
-
-            // 같은 셀·같은 배치의 CT/RGB Inspection 모두 조회
-            inspectionIds = inspectionRepository
-                    .findByInspectionBatchIdAndBatteryCellIdOrderByIdAsc(
-                            inspectionBatchId,
-                            batteryCellId
-                    )
-                    .stream()
-                    .map(Inspection::getId)
-                    .toList();
-        }
-
-        List<DefectResult> defects =
-                defectResultRepository.findByInspectionIdIn(inspectionIds);
-
-        // 기존과 동일하게 CT 최대 10건
-        List<ImageMappingDto> ctMappings = defects.stream()
-                .filter(defect ->
-                        "CT".equalsIgnoreCase(defect.getImageType())
-                                && defect.getBbox() != null
-                                && defect.getInspectionImage() != null
-                )
-                .limit(10)
-                .map(this::toImageMapping)
-                .toList();
-
-        // 기존과 동일하게 RGB 최대 10건
-        List<ImageMappingDto> rgbMappings = defects.stream()
-                .filter(defect ->
-                        "RGB".equalsIgnoreCase(defect.getImageType())
-                                && defect.getBbox() != null
-                                && defect.getInspectionImage() != null
-                )
-                .limit(10)
-                .map(this::toImageMapping)
+        List<Long> sourceInspectionIds = sourceInspections.stream()
+                .map(Inspection::getId)
                 .toList();
 
         List<ImageMappingDto> imageMappings = new ArrayList<>();
-        imageMappings.addAll(ctMappings);
-        imageMappings.addAll(rgbMappings);
 
-        return IndividualReportDetailResponse.of(report, imageMappings);
+        if (!sourceInspectionIds.isEmpty()) {
+            List<DefectResult> defects =
+                    defectResultRepository.findByInspectionIdIn(
+                            sourceInspectionIds
+                    );
+
+            // CT 결함 이미지 최대 10건
+            List<ImageMappingDto> ctMappings = defects.stream()
+                    .filter(defect ->
+                            "CT".equalsIgnoreCase(defect.getImageType())
+                                    && defect.getBbox() != null
+                                    && defect.getInspectionImage() != null
+                    )
+                    .limit(10)
+                    .map(this::toImageMapping)
+                    .toList();
+
+            // RGB 결함 이미지 최대 10건
+            List<ImageMappingDto> rgbMappings = defects.stream()
+                    .filter(defect ->
+                            "RGB".equalsIgnoreCase(defect.getImageType())
+                                    && defect.getBbox() != null
+                                    && defect.getInspectionImage() != null
+                    )
+                    .limit(10)
+                    .map(this::toImageMapping)
+                    .toList();
+
+            imageMappings.addAll(ctMappings);
+            imageMappings.addAll(rgbMappings);
+        }
+
+        /*
+         * main의 기능:
+         * 같은 셀·같은 배치의 CT/RGB 결과를
+         * FAIL → REJECT → PASS 순서로 통합합니다.
+         */
+        InspectionOutcome outcome =
+                summarizeOutcome(sourceInspections);
+
+        return IndividualReportDetailResponse.of(
+                report,
+                imageMappings,
+                outcome.finalLabel(),
+                outcome.status(),
+                outcome.failureType(),
+                outcome.failureReason()
+        );
     }
 
     @Transactional
@@ -161,10 +181,34 @@ public class ReportService {
         BatteryCell cell = batteryCellRepository.findById(request.batteryCellId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 배터리 셀입니다."));
 
-        // 최신 REJECT 검사 조회
-        Inspection rejectInspection = inspectionRepository
-                .findTopByBatteryCellIdAndFinalLabelOrderByCreatedAtDesc(cell.getId(), FinalLabel.REJECT)
-                .orElse(null);
+        List<Inspection> inspections = inspectionRepository
+                .findAllByBatteryCellIdOrderByBatchDesc(cell.getId());
+        if (inspections.isEmpty()) {
+            throw new IllegalStateException("리포트를 생성할 검사 결과가 없습니다.");
+        }
+        Long latestBatchId = inspections.get(0).getInspectionBatch().getId();
+        List<Inspection> sourceInspections = inspections.stream()
+                .filter(i -> Objects.equals(i.getInspectionBatch().getId(), latestBatchId))
+                .toList();
+        boolean terminal = sourceInspections.stream().allMatch(i ->
+                i.getStatus() == InspectionStatus.COMPLETED
+                        || i.getStatus() == InspectionStatus.FAILED
+        );
+        if (!terminal) {
+            throw new IllegalStateException("최신 CT/RGB 검사가 아직 완료되지 않았습니다.");
+        }
+        Inspection representativeInspection = sourceInspections.stream()
+                .filter(i -> i.getInspectionType() == InspectionType.CT)
+                .findFirst()
+                .orElse(sourceInspections.get(0));
+        String sourceInspectionIds;
+        try {
+            sourceInspectionIds = objectMapper.writeValueAsString(
+                    sourceInspections.stream().map(Inspection::getId).toList()
+            );
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("검사 출처를 직렬화할 수 없습니다.", e);
+        }
 
         Integer maxVersion = reportsIndividualRepository.findMaxVersionByBatteryCellId(cell.getId());
         int nextVersion = (maxVersion == null) ? 1 : maxVersion + 1;
@@ -172,7 +216,8 @@ public class ReportService {
         ReportsIndividual newReport = ReportsIndividual.builder()
                 .batteryCell(cell)
                 .version(nextVersion)
-                .representativeInspection(rejectInspection) // 최근 REJECT 검사 매핑 (없으면 null)
+                .representativeInspection(representativeInspection)
+                .sourceInspectionIds(sourceInspectionIds)
                 .status(ReportStatus.PENDING)
                 .build();
         ReportsIndividual saved = reportsIndividualRepository.save(newReport);
@@ -189,6 +234,53 @@ public class ReportService {
                 .status(saved.getStatus().name())
                 .build();
     }
+
+    private List<Inspection> resolveSourceInspections(ReportsIndividual report) {
+        List<Long> ids = new ArrayList<>();
+        if (report.getSourceInspectionIds() != null) {
+            try {
+                ids.addAll(objectMapper.readValue(
+                        report.getSourceInspectionIds(),
+                        new TypeReference<List<Long>>() {}
+                ));
+            } catch (JsonProcessingException e) {
+                throw new IllegalStateException("리포트 검사 출처를 읽을 수 없습니다.", e);
+            }
+        }
+        if (ids.isEmpty() && report.getRepresentativeInspection() != null) {
+            ids.add(report.getRepresentativeInspection().getId());
+        }
+        return inspectionRepository.findAllById(ids);
+    }
+
+    private InspectionOutcome summarizeOutcome(List<Inspection> inspections) {
+        Inspection failed = inspections.stream()
+                .filter(i -> i.getStatus() == InspectionStatus.FAILED)
+                .findFirst()
+                .orElse(null);
+        String finalLabel = inspections.stream()
+                .anyMatch(i -> i.getStatus() == InspectionStatus.FAILED)
+                ? "FAIL"
+                : inspections.stream().anyMatch(i -> i.getFinalLabel() != null
+                        && "REJECT".equals(i.getFinalLabel().name()))
+                        ? "REJECT"
+                        : "PASS";
+        String status = failed != null ? "FAILED" : "COMPLETED";
+        return new InspectionOutcome(
+                finalLabel,
+                status,
+                failed != null && failed.getFailureType() != null
+                        ? failed.getFailureType().name() : null,
+                failed != null ? failed.getFailureReason() : null
+        );
+    }
+
+    private record InspectionOutcome(
+            String finalLabel,
+            String status,
+            String failureType,
+            String failureReason
+    ) {}
 
     private void dispatchAfterCommit(String uri, Long reportId, String reportType) {
         Runnable dispatch = () -> {
@@ -216,38 +308,22 @@ public class ReportService {
     }
 
     private ImageMappingDto toImageMapping(DefectResult defect) {
-        String imageUrl = null;
+        var inspectionImage = defect.getInspectionImage();
 
-        if (defect.getInspectionImage() != null) {
-            imageUrl = s3ImageUrlService.createGetUrl(
-                    defect.getInspectionImage().getBucketName(),
-                    defect.getInspectionImage().getObjectKey()
-            );
-        }
+        String imageUrl = s3ImageUrlService.createGetUrl(
+                inspectionImage.getBucketName(),
+                inspectionImage.getObjectKey()
+        );
 
         return ImageMappingDto.builder()
                 .imageType(defect.getImageType())
-                .imageId(
-                        defect.getInspectionImage() != null
-                                ? defect.getInspectionImage().getId()
-                                : null
-                )
+                .imageId(inspectionImage.getId())
                 .imgUrl(imageUrl)
-                .volume(
-                        defect.getInspectionImage() != null
-                                ? defect.getInspectionImage().getVolume()
-                                : null
-                )
-                .index(
-                        defect.getInspectionImage() != null
-                                ? defect.getInspectionImage().getIndex()
-                                : null
-                )
-                .axis(
-                        defect.getInspectionImage() != null
-                                ? defect.getInspectionImage().getAxis()
-                                : null
-                )
+                .volume(inspectionImage.getVolume())
+                .index(inspectionImage.getIndex())
+                .axis(inspectionImage.getAxis())
+                .imageWidth(inspectionImage.getWidth())
+                .imageHeight(inspectionImage.getHeight())
                 .bbox(defect.getBbox())
                 .build();
     }

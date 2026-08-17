@@ -2,8 +2,8 @@ package com.aivle.big_project.ai.llm.service;
 
 import com.aivle.big_project.ai.llm.client.LlmWebClient;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
-import com.aivle.big_project.domain.inspection.Inspection;
 import com.aivle.big_project.domain.inspection.InspectionRepository;
+import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.aivle.big_project.domain.report.ReportStatus;
 import com.aivle.big_project.domain.report.ReportsDailyRepository;
 import com.aivle.big_project.domain.report.ReportsIndividual;
@@ -14,6 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
@@ -34,9 +36,13 @@ class LlmAsyncServiceRuntimeTest {
     @Mock
     private InspectionRepository inspectionRepository;
     @Mock
+    private InspectionImageRepository inspectionImageRepository;
+    @Mock
     private LlmWebClient llmWebClient;
     @Mock
     private ObjectMapper objectMapper;
+    @Mock
+    private PlatformTransactionManager transactionManager;
     @InjectMocks
     private LlmAsyncService service;
 
@@ -50,25 +56,27 @@ class LlmAsyncServiceRuntimeTest {
     }
 
     @Test
-    void individualGenerationRunsInsideTransactionForLazyRelations()
+    void individualGenerationDoesNotHoldTransactionAcrossVlmCall()
             throws NoSuchMethodException {
         assertThat(LlmAsyncService.class
                 .getMethod("generateIndividualReportAsync", Long.class)
                 .isAnnotationPresent(Transactional.class))
-                .isTrue();
+                .isFalse();
     }
 
     @Test
     void unexpectedIndividualWorkerErrorTerminalizesReport() {
+        TransactionStatus transactionStatus = org.mockito.Mockito.mock(
+                TransactionStatus.class
+        );
+        when(transactionManager.getTransaction(
+                org.mockito.ArgumentMatchers.any()
+        )).thenReturn(transactionStatus);
         ReportsIndividual report = org.mockito.Mockito.mock(
                 ReportsIndividual.class
         );
-        Inspection inspection = org.mockito.Mockito.mock(Inspection.class);
         when(reportsIndividualRepository.findById(1L))
                 .thenReturn(Optional.of(report));
-        when(report.getRepresentativeInspection()).thenReturn(inspection);
-        when(inspection.getPointGroups())
-                .thenThrow(new IllegalStateException("lazy relation failed"));
 
         service.generateIndividualReportAsync(1L);
 
@@ -79,5 +87,6 @@ class LlmAsyncServiceRuntimeTest {
                 "WORKER_ERROR:IllegalStateException"
         );
         verify(reportsIndividualRepository).save(report);
+        verify(transactionManager).rollback(transactionStatus);
     }
 }

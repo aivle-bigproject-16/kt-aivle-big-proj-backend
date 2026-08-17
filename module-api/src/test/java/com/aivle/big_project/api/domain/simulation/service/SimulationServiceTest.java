@@ -8,6 +8,7 @@ import com.aivle.big_project.domain.cell.BatteryCellRepository;
 import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.aivle.big_project.domain.inspection.InspectionBatchRepository;
 import com.aivle.big_project.domain.inspection.InspectionRepository;
+import com.aivle.big_project.domain.simulation.SimulationRun;
 import com.aivle.big_project.domain.simulation.SimulationRunRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,10 +20,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -70,7 +74,7 @@ class SimulationServiceTest {
                 ))
                 .thenReturn(List.of(batteryCell));
 
-        assertThatThrownBy(() -> service.start(new StartRequest(5, 20, 100,false)))
+        assertThatThrownBy(() -> service.start(new StartRequest(5, 20, 100, false)))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("SIM 시뮬레이션 셀 수가 부족합니다");
 
@@ -79,5 +83,55 @@ class SimulationServiceTest {
                         eq("SIM-"),
                         any(Pageable.class)
                 );
+    }
+
+    @Test
+    void resetClearsHistoryBeforeSelectingSimulationCells() {
+        when(batteryCellRepository
+                .findByCellSerialNoStartingWithOrderByCellSerialNoAsc(
+                        eq("SIM-"),
+                        any(Pageable.class)
+                ))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.start(new StartRequest(5, 20, 100, true)))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("SIM 시뮬레이션 셀 수가 부족합니다");
+
+        var ordered = inOrder(simulationDataResetter, batteryCellRepository);
+        ordered.verify(simulationDataResetter).reset();
+        ordered.verify(batteryCellRepository)
+                .findByCellSerialNoStartingWithOrderByCellSerialNoAsc(
+                        eq("SIM-"),
+                        any(Pageable.class)
+                );
+    }
+
+    @Test
+    void startWithoutResetPreservesHistory() {
+        when(batteryCellRepository
+                .findByCellSerialNoStartingWithOrderByCellSerialNoAsc(
+                        eq("SIM-"),
+                        any(Pageable.class)
+                ))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.start(new StartRequest(5, 20, 100, false)))
+                .isInstanceOf(ResponseStatusException.class);
+
+        verify(simulationDataResetter, never()).reset();
+    }
+
+    @Test
+    void resetDoesNotDeleteAnActiveSimulation() {
+        when(simulationRunRepository
+                .findTopByStatusOrderByStartedAtDesc(any()))
+                .thenReturn(Optional.of(org.mockito.Mockito.mock(SimulationRun.class)));
+
+        assertThatThrownBy(() -> service.start(new StartRequest(5, 20, 100, true)))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("이미 실행 중인 시뮬레이션");
+
+        verify(simulationDataResetter, never()).reset();
     }
 }

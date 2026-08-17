@@ -4,6 +4,7 @@ import com.aivle.big_project.ai.llm.client.LlmWebClient;
 import com.aivle.big_project.ai.llm.dto.VlmReportResponse;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
 import com.aivle.big_project.domain.inspection.InspectionRepository;
+import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.aivle.big_project.domain.report.ReportStatus;
 import com.aivle.big_project.domain.report.ReportsDaily;
 import com.aivle.big_project.domain.report.ReportsDailyRepository;
@@ -83,8 +84,10 @@ class LlmAsyncServiceTest {
                 mock(ReportsIndividualRepository.class),
                 defectRepository,
                 inspectionRepository,
+                mock(InspectionImageRepository.class),
                 llmWebClient,
-                new ObjectMapper()
+                new ObjectMapper(),
+                mock(org.springframework.transaction.PlatformTransactionManager.class)
         );
     }
 }

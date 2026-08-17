@@ -46,6 +46,18 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           allowed-account-ids: "825555019742"
 
+      - name: Verify deployment target is online
+        env:
+          INSTANCE_ID: ${{ vars.AWS_DEPLOY_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+          ping_status=$(aws ssm describe-instance-information \
+            --region "$AWS_REGION" \
+            --filters "Key=InstanceIds,Values=${INSTANCE_ID}" \
+            --query 'InstanceInformationList[0].PingStatus' \
+            --output text)
+          test "$ping_status" = Online
+
       - name: Login to Amazon ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2.1.6
@@ -126,5 +138,4 @@ jobs:
             test "$status" = Success
           }
 
-          deploy_service backend-ai
-          deploy_service backend
+          deploy_service backend-stack
