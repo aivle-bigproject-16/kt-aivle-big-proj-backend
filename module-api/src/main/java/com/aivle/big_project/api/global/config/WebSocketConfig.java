@@ -15,7 +15,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             StompEndpointRegistry registry
     ) {
         registry.addEndpoint("/ws/sim")
-                .setAllowedOriginPatterns("http://localhost:*");
+                .setAllowedOriginPatterns(
+                        "http://localhost:*",
+                        "https://kt-aivle-9th-big-project-16-344eeb75.sslip.io"
+                );
     }
 
     @Override
