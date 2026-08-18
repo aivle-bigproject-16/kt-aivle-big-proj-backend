@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface ReportsDailyItemRepository extends JpaRepository<ReportsDailyItem, Long> {
     List<ReportsDailyItem> findByReportsDailyId(Long reportsDailyId);
+    void deleteByReportsDailyId(Long reportsDailyId);
 }
