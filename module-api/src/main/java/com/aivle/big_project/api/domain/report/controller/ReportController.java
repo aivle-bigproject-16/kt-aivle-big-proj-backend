@@ -59,4 +59,16 @@ public class ReportController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("개별 리포트 생성 요청이 접수되었습니다.", response));
     }
+
+    @DeleteMapping("/daily/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteDailyReport(@PathVariable Long id) {
+        reportService.deleteDailyReport(id);
+        return ResponseEntity.ok(ApiResponse.success("일일 리포트가 삭제되었습니다.", null));
+    }
+
+    @DeleteMapping("/individual/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteIndividualReport(@PathVariable Long id) {
+        reportService.deleteIndividualReport(id);
+        return ResponseEntity.ok(ApiResponse.success("개별 리포트가 삭제되었습니다.", null));
+    }
 }

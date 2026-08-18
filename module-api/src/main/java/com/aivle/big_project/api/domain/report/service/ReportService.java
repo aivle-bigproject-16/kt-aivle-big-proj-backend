@@ -327,4 +327,21 @@ public class ReportService {
                 .bbox(defect.getBbox())
                 .build();
     }
+
+    @Transactional
+    public void deleteDailyReport(Long id) {
+        if (!reportsDailyRepository.existsById(id)) {
+            throw new IllegalArgumentException("존재하지 않는 일일 리포트입니다.");
+        }
+        reportsDailyItemRepository.deleteByReportsDailyId(id);
+        reportsDailyRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void deleteIndividualReport(Long id) {
+        if (!reportsIndividualRepository.existsById(id)) {
+            throw new IllegalArgumentException("존재하지 않는 개별 리포트입니다.");
+        }
+        reportsIndividualRepository.deleteById(id);
+    }
 }
