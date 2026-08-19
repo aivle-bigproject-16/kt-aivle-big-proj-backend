@@ -2,7 +2,6 @@ package com.aivle.big_project.api.domain.simulation.service;
 
 import com.aivle.big_project.domain.image.BatteryCellImage;
 import com.aivle.big_project.domain.image.BatteryCellImageRepository;
-import com.aivle.big_project.domain.image.CaptureSet;
 import com.aivle.big_project.domain.image.InspectionImage;
 import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.aivle.big_project.domain.inspection.*;
@@ -13,14 +12,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class SimulationCaptureService {
-
-    private static final String SIMULATION_CELL_PREFIX = "SIM-";
 
     private final InspectionBatchRepository inspectionBatchRepository;
     private final InspectionRepository inspectionRepository;
@@ -52,37 +48,24 @@ public class SimulationCaptureService {
     private void createInspectionImagesFromSource(Inspection inspection) {
         String imageType = inspection.getInspectionType().name();
         int attemptNo = inspection.currentAttemptNo();
-        CaptureSet captureSet = attemptNo == 1
-                ? CaptureSet.INITIAL
-                : CaptureSet.RECAPTURE;
+        int recaptureNo = inspection.getCaptureRetryCount();
 
         List<BatteryCellImage> sourceImages =
                 batteryCellImageRepository
-                        .findByBatteryCellIdAndImageTypeAndCaptureSetOrderByIdAsc(
+                        .findByBatteryCellIdAndImageTypeAndRecaptureNoOrderByIdAsc(
                                 inspection.getBatteryCell().getId(),
                                 imageType,
-                                captureSet
+                                recaptureNo
                         );
-
-        if (sourceImages.isEmpty()
-                && captureSet == CaptureSet.RECAPTURE
-                && !isSimulationCell(inspection)) {
-            sourceImages = batteryCellImageRepository
-                    .findByBatteryCellIdAndImageTypeAndCaptureSetOrderByIdAsc(
-                            inspection.getBatteryCell().getId(),
-                            imageType,
-                            CaptureSet.INITIAL
-                    );
-        }
 
         if (sourceImages.isEmpty()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "%s %s 원본 이미지가 없습니다. batteryCellId=%d"
+                    "%s 촬영 이미지가 없습니다. batteryCellId=%d, recaptureNo=%d"
                             .formatted(
                                     imageType,
-                                    captureSet,
-                                    inspection.getBatteryCell().getId()
+                                    inspection.getBatteryCell().getId(),
+                                    recaptureNo
                             )
             );
         }
@@ -109,26 +92,6 @@ public class SimulationCaptureService {
 
             inspectionImageRepository.save(inspectionImage);
         }
-    }
-
-    private boolean isSimulationCell(Inspection inspection) {
-        return inspection.getBatteryCell().getCellSerialNo()
-                .startsWith(SIMULATION_CELL_PREFIX);
-    }
-
-    private String buildObjectKey(
-            Long simulationRunId,
-            Long batchId,
-            Long inspectionId,
-            String imageType
-    ) {
-        return "simulations/%d/batches/%d/inspections/%d/%s.png"
-                .formatted(
-                        simulationRunId,
-                        batchId,
-                        inspectionId,
-                        imageType.toLowerCase(Locale.ROOT)
-                );
     }
 
     public void recapture(Long inspectionId) {

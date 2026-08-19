@@ -38,6 +38,9 @@ public class BatteryCellImage {
     @Column(name = "capture_set", length = 20, nullable = false)
     private CaptureSet captureSet = CaptureSet.INITIAL;
 
+    @Column(name = "recapture_no", nullable = false)
+    private int recaptureNo = 0;
+
     @Column(name = "bucket_name", length = 100, nullable = false)
     private String bucketName;
 
@@ -86,10 +89,38 @@ public class BatteryCellImage {
             String objectKey,
             String storageType
     ) {
+        return create(
+                batteryCell,
+                imageType,
+                bucketName,
+                objectKey,
+                storageType,
+                0
+        );
+    }
+
+    public static BatteryCellImage create(
+            BatteryCell batteryCell,
+            String imageType,
+            String bucketName,
+            String objectKey,
+            String storageType,
+            int recaptureNo
+    ) {
+        if (recaptureNo < 0) {
+            throw new IllegalArgumentException(
+                    "recaptureNo는 0 이상이어야 합니다."
+            );
+        }
+
         BatteryCellImage image = new BatteryCellImage();
 
         image.batteryCell = batteryCell;
         image.imageType = imageType;
+        image.captureSet = recaptureNo == 0
+                ? CaptureSet.INITIAL
+                : CaptureSet.RECAPTURE;
+        image.recaptureNo = recaptureNo;
         image.bucketName = bucketName;
         image.objectKey = objectKey;
         image.storageType = storageType;
