@@ -50,8 +50,10 @@ public class NoticeController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<PagedResponse<NoticeDto.ListResponse>>> getNoticeList(
-            @ParameterObject @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        PagedResponse<NoticeDto.ListResponse> response = noticeService.getNoticeList(pageable);
+            @RequestParam(required = false) String keyword,
+            @org.springframework.data.web.PageableDefault(sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC)
+            @ParameterObject Pageable pageable) {
+        PagedResponse<NoticeDto.ListResponse> response = noticeService.getNoticeList(keyword, pageable);
         return ResponseEntity.ok(ApiResponse.success("공지사항 목록 조회가 완료되었습니다.", response));
     }
 

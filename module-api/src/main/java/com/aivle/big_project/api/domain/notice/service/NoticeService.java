@@ -93,8 +93,15 @@ public class NoticeService {
         noticeRepository.deleteById(noticeId);
     }
 
-    public PagedResponse<NoticeDto.ListResponse> getNoticeList(Pageable pageable) {
-        Page<NoticeDto.ListResponse> responsePage = noticeRepository.findAllByOrderByCreatedAtDesc(pageable)
+    public PagedResponse<NoticeDto.ListResponse> getNoticeList(String keyword, Pageable pageable) {
+        org.springframework.data.jpa.domain.Specification<Notice> spec = org.springframework.data.jpa.domain.Specification.where(null);
+        if (keyword != null && !keyword.isBlank()) {
+            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("title")), "%" + keyword.toLowerCase() + "%"));
+        }
+        
+        // Ensure sorting by createdAt DESC if pageable doesn't specify sort, or let controller's PageableDefault handle it.
+        // Controller already sets sort = "createdAt", direction = Sort.Direction.DESC
+        Page<NoticeDto.ListResponse> responsePage = noticeRepository.findAll(spec, pageable)
                 .map(NoticeDto.ListResponse::from);
         return PagedResponse.from(responsePage);
     }

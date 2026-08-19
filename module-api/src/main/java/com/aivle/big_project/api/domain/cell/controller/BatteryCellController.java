@@ -25,10 +25,12 @@ public class BatteryCellController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<PagedResponse<BatteryCellListResponse>>> getBatteryCells(
-            @ParameterObject @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        log.info("배터리 목록 조회 요청 - Pageable: {}", pageable);
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String finalLabel,
+            @org.springframework.data.web.PageableDefault(sort = "id", direction = org.springframework.data.domain.Sort.Direction.DESC)
+            @ParameterObject Pageable pageable) {
         try {
-            PagedResponse<BatteryCellListResponse> response = batteryCellService.getBatteryCells(pageable);
+            PagedResponse<BatteryCellListResponse> response = batteryCellService.getBatteryCells(keyword, finalLabel, pageable);
             return ResponseEntity.ok(ApiResponse.success("배터리 목록 조회가 완료되었습니다.", response));
         } catch (Exception e) {
             log.error("배터리 목록 조회 실패", e);

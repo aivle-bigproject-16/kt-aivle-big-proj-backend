@@ -11,7 +11,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-public interface ReportsDailyRepository extends JpaRepository<ReportsDaily, Long> {
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
+public interface ReportsDailyRepository extends JpaRepository<ReportsDaily, Long>, JpaSpecificationExecutor<ReportsDaily> {
     Optional<ReportsDaily> findByReportDate(LocalDate reportDate);
     
     @Query("SELECT r FROM ReportsDaily r WHERE r.status = 'PENDING' AND ((r.dispatchedAt IS NULL AND r.createdAt < :threshold) OR r.dispatchedAt < :threshold)")

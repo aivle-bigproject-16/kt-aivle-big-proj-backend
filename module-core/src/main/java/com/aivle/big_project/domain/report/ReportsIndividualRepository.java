@@ -7,7 +7,9 @@ import org.springframework.data.repository.query.Param;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public interface ReportsIndividualRepository extends JpaRepository<ReportsIndividual, Long> {
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
+public interface ReportsIndividualRepository extends JpaRepository<ReportsIndividual, Long>, JpaSpecificationExecutor<ReportsIndividual> {
     List<ReportsIndividual> findByBatteryCellId(Long batteryCellId);
     
     @Query("SELECT MAX(r.version) FROM ReportsIndividual r WHERE r.batteryCell.id = :batteryCellId")
