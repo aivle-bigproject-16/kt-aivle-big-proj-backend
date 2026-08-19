@@ -3,7 +3,6 @@ package com.aivle.big_project.api.domain.simulation.service;
 import com.aivle.big_project.domain.cell.BatteryCell;
 import com.aivle.big_project.domain.image.BatteryCellImage;
 import com.aivle.big_project.domain.image.BatteryCellImageRepository;
-import com.aivle.big_project.domain.image.CaptureSet;
 import com.aivle.big_project.domain.image.InspectionImage;
 import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.aivle.big_project.domain.inspection.Inspection;
@@ -53,51 +52,86 @@ class SimulationCaptureServiceTest {
         when(inspection.getStatus()).thenReturn(InspectionStatus.CAPTURING);
         when(inspection.getInspectionType()).thenReturn(InspectionType.RGB);
         when(inspection.currentAttemptNo()).thenReturn(2);
+        when(inspection.getCaptureRetryCount()).thenReturn(1);
         when(inspection.getBatteryCell()).thenReturn(batteryCell);
         when(batteryCell.getId()).thenReturn(20L);
     }
 
     @Test
-    void recaptureUsesDedicatedRecaptureSources() {
+    void firstRecaptureUsesRecaptureNumberOneSources() {
+        when(inspection.getId()).thenReturn(10L);
+        when(sourceImage.getId()).thenReturn(30L);
         when(batteryCellImageRepository
-                .findByBatteryCellIdAndImageTypeAndCaptureSetOrderByIdAsc(
+                .findByBatteryCellIdAndImageTypeAndRecaptureNoOrderByIdAsc(
                         20L,
                         "RGB",
-                        CaptureSet.RECAPTURE
+                        1
                 ))
                 .thenReturn(List.of(sourceImage));
 
         service.recapture(10L);
 
         verify(inspectionImageRepository).save(any(InspectionImage.class));
+        verify(inspectionImageRepository)
+                .existsByInspectionIdAndBatteryCellImageIdAndAttemptNo(
+                        10L,
+                        30L,
+                        2
+                );
         verify(batteryCellImageRepository, never())
-                .findByBatteryCellIdAndImageTypeAndCaptureSetOrderByIdAsc(
+                .findByBatteryCellIdAndImageTypeAndRecaptureNoOrderByIdAsc(
                         20L,
                         "RGB",
-                        CaptureSet.INITIAL
+                        0
                 );
     }
 
     @Test
-    void simulationRecaptureFailsInsteadOfReusingInitialSources() {
-        when(batteryCell.getCellSerialNo()).thenReturn("SIM-0001");
+    void secondRecaptureUsesRecaptureNumberTwoSources() {
+        when(inspection.getId()).thenReturn(10L);
+        when(sourceImage.getId()).thenReturn(30L);
+        when(inspection.currentAttemptNo()).thenReturn(3);
+        when(inspection.getCaptureRetryCount()).thenReturn(2);
         when(batteryCellImageRepository
-                .findByBatteryCellIdAndImageTypeAndCaptureSetOrderByIdAsc(
+                .findByBatteryCellIdAndImageTypeAndRecaptureNoOrderByIdAsc(
                         20L,
                         "RGB",
-                        CaptureSet.RECAPTURE
+                        2
+                ))
+                .thenReturn(List.of(sourceImage));
+
+        service.recapture(10L);
+
+        verify(inspectionImageRepository)
+                .existsByInspectionIdAndBatteryCellImageIdAndAttemptNo(
+                        10L,
+                        30L,
+                        3
+                );
+        verify(inspectionImageRepository).save(any(InspectionImage.class));
+    }
+
+    @Test
+    void recaptureFailsInsteadOfReusingInitialSources() {
+        when(batteryCellImageRepository
+                .findByBatteryCellIdAndImageTypeAndRecaptureNoOrderByIdAsc(
+                        20L,
+                        "RGB",
+                        1
                 ))
                 .thenReturn(List.of());
 
         assertThatThrownBy(() -> service.recapture(10L))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("RGB RECAPTURE 원본 이미지가 없습니다");
+                .hasMessageContaining(
+                        "RGB 촬영 이미지가 없습니다. batteryCellId=20, recaptureNo=1"
+                );
 
         verify(batteryCellImageRepository, never())
-                .findByBatteryCellIdAndImageTypeAndCaptureSetOrderByIdAsc(
+                .findByBatteryCellIdAndImageTypeAndRecaptureNoOrderByIdAsc(
                         20L,
                         "RGB",
-                        CaptureSet.INITIAL
+                        0
                 );
     }
 }

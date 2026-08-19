@@ -7,9 +7,9 @@ import java.util.List;
 public interface BatteryCellImageRepository
         extends JpaRepository<BatteryCellImage, Long> {
 
-    List<BatteryCellImage> findByBatteryCellIdAndImageTypeAndCaptureSetOrderByIdAsc(
+    List<BatteryCellImage> findByBatteryCellIdAndImageTypeAndRecaptureNoOrderByIdAsc(
             Long batteryCellId,
             String imageType,
-            CaptureSet captureSet
+            int recaptureNo
     );
 }
