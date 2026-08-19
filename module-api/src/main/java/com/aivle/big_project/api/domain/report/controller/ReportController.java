@@ -20,9 +20,11 @@ public class ReportController {
 
     @GetMapping("/daily")
     public ResponseEntity<ApiResponse<PagedResponse<DailyReportListResponse>>> getDailyReports(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status,
             @org.springframework.data.web.PageableDefault(sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC)
             @ParameterObject Pageable pageable) {
-        PagedResponse<DailyReportListResponse> response = reportService.getDailyReports(pageable);
+        PagedResponse<DailyReportListResponse> response = reportService.getDailyReports(keyword, status, pageable);
         return ResponseEntity.ok(ApiResponse.success("일일 리포트 목록 조회가 완료되었습니다.", response));
     }
 
@@ -41,9 +43,11 @@ public class ReportController {
 
     @GetMapping("/individual")
     public ResponseEntity<ApiResponse<PagedResponse<IndividualReportListResponse>>> getIndividualReports(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status,
             @org.springframework.data.web.PageableDefault(sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC)
             @ParameterObject Pageable pageable) {
-        PagedResponse<IndividualReportListResponse> response = reportService.getIndividualReports(pageable);
+        PagedResponse<IndividualReportListResponse> response = reportService.getIndividualReports(keyword, status, pageable);
         return ResponseEntity.ok(ApiResponse.success("개별 리포트 목록 조회가 완료되었습니다.", response));
     }
 

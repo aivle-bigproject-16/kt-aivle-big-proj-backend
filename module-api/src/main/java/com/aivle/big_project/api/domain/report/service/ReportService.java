@@ -45,8 +45,26 @@ public class ReportService {
     private final S3ImageUrlService s3ImageUrlService;
     private final ObjectMapper objectMapper;
 
-    public PagedResponse<DailyReportListResponse> getDailyReports(Pageable pageable) {
-        Page<ReportsDaily> reports = reportsDailyRepository.findAll(pageable);
+    public PagedResponse<DailyReportListResponse> getDailyReports(String keyword, String statusStr, Pageable pageable) {
+        ReportStatus status = null;
+        if (statusStr != null && !statusStr.isBlank()) {
+            try {
+                status = ReportStatus.valueOf(statusStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // ignore or handle
+            }
+        }
+        
+        org.springframework.data.jpa.domain.Specification<ReportsDaily> spec = org.springframework.data.jpa.domain.Specification.where(null);
+        if (keyword != null && !keyword.isBlank()) {
+            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("title")), "%" + keyword.toLowerCase() + "%"));
+        }
+        if (status != null) {
+            final ReportStatus finalStatus = status;
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), finalStatus));
+        }
+        
+        Page<ReportsDaily> reports = reportsDailyRepository.findAll(spec, pageable);
         Page<DailyReportListResponse> responsePage = reports.map(DailyReportListResponse::from);
         return PagedResponse.from(responsePage);
     }
@@ -58,8 +76,26 @@ public class ReportService {
         return DailyReportDetailResponse.from(report);
     }
 
-    public PagedResponse<IndividualReportListResponse> getIndividualReports(Pageable pageable) {
-        Page<ReportsIndividual> reports = reportsIndividualRepository.findAll(pageable);
+    public PagedResponse<IndividualReportListResponse> getIndividualReports(String keyword, String statusStr, Pageable pageable) {
+        ReportStatus status = null;
+        if (statusStr != null && !statusStr.isBlank()) {
+            try {
+                status = ReportStatus.valueOf(statusStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // ignore
+            }
+        }
+        
+        org.springframework.data.jpa.domain.Specification<ReportsIndividual> spec = org.springframework.data.jpa.domain.Specification.where(null);
+        if (keyword != null && !keyword.isBlank()) {
+            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("title")), "%" + keyword.toLowerCase() + "%"));
+        }
+        if (status != null) {
+            final ReportStatus finalStatus = status;
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), finalStatus));
+        }
+        
+        Page<ReportsIndividual> reports = reportsIndividualRepository.findAll(spec, pageable);
         Page<IndividualReportListResponse> responsePage = reports.map(IndividualReportListResponse::from);
         return PagedResponse.from(responsePage);
     }

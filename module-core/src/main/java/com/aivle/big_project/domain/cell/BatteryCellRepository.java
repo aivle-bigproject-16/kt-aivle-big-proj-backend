@@ -8,7 +8,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface BatteryCellRepository extends JpaRepository<BatteryCell, Long> {
+public interface BatteryCellRepository extends JpaRepository<BatteryCell, Long>, BatteryCellRepositoryCustom {
     Optional<BatteryCell> findByCellSerialNo(String cellSerialNo);
 
     List<BatteryCell> findByCellSerialNoStartingWithOrderByCellSerialNoAsc(
