@@ -1,6 +1,5 @@
 package com.aivle.big_project.domain.cell;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -11,38 +10,6 @@ import java.util.Optional;
 
 public interface BatteryCellRepository extends JpaRepository<BatteryCell, Long> {
     Optional<BatteryCell> findByCellSerialNo(String cellSerialNo);
-
-    @Query(
-            value = """
-                SELECT DISTINCT bc
-                FROM BatteryCell bc, Inspection i
-                WHERE i.batteryCell = bc
-                  AND i.inspectionBatch IS NOT NULL
-                  AND i.finalLabel IS NOT NULL
-                  AND NOT EXISTS (
-                      SELECT pending.id
-                      FROM Inspection pending
-                      WHERE pending.batteryCell = bc
-                        AND pending.inspectionBatch = i.inspectionBatch
-                        AND pending.finalLabel IS NULL
-                )
-                """,
-            countQuery = """
-                SELECT COUNT(DISTINCT bc.id)
-                FROM BatteryCell bc, Inspection i
-                WHERE i.batteryCell = bc
-                  AND i.inspectionBatch IS NOT NULL
-                  AND i.finalLabel IS NOT NULL
-                  AND NOT EXISTS (
-                      SELECT pending.id
-                      FROM Inspection pending
-                      WHERE pending.batteryCell = bc
-                        AND pending.inspectionBatch = i.inspectionBatch
-                        AND pending.finalLabel IS NULL
-                )
-                """
-    )
-    Page<BatteryCell> findAllWithInspectionResult(Pageable pageable);
 
     List<BatteryCell> findByCellSerialNoStartingWithOrderByCellSerialNoAsc(
             String prefix,
