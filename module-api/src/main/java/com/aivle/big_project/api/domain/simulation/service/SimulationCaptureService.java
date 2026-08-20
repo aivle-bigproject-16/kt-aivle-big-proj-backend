@@ -1,5 +1,6 @@
 package com.aivle.big_project.api.domain.simulation.service;
 
+import com.aivle.big_project.api.domain.simulation.exception.RecaptureSourceNotFoundException;
 import com.aivle.big_project.domain.image.BatteryCellImage;
 import com.aivle.big_project.domain.image.BatteryCellImageRepository;
 import com.aivle.big_project.domain.image.InspectionImage;
@@ -59,6 +60,17 @@ public class SimulationCaptureService {
                         );
 
         if (sourceImages.isEmpty()) {
+            if (recaptureNo > 0) {
+                throw new RecaptureSourceNotFoundException(
+                        "%s 재촬영 원본 이미지가 없습니다. batteryCellId=%d, recaptureNo=%d"
+                                .formatted(
+                                        imageType,
+                                        inspection.getBatteryCell().getId(),
+                                        recaptureNo
+                                )
+                );
+            }
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "%s 촬영 이미지가 없습니다. batteryCellId=%d, recaptureNo=%d"

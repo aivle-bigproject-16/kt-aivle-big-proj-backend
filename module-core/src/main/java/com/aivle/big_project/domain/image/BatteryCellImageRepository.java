@@ -12,4 +12,10 @@ public interface BatteryCellImageRepository
             String imageType,
             int recaptureNo
     );
+
+    boolean existsByBatteryCellIdAndImageTypeAndRecaptureNo(
+            Long batteryCellId,
+            String imageType,
+            int recaptureNo
+    );
 }

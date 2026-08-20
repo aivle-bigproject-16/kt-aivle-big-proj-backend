@@ -4,6 +4,7 @@ import com.aivle.big_project.api.domain.simulation.client.dto.AiServerDto;
 import com.aivle.big_project.domain.cell.BatteryCell;
 import com.aivle.big_project.domain.defect.DefectResult;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
+import com.aivle.big_project.domain.image.BatteryCellImageRepository;
 import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.aivle.big_project.domain.inspection.Inspection;
 import com.aivle.big_project.domain.inspection.InspectionRepository;
@@ -33,6 +34,8 @@ class AiCallbackValidationTest {
 
     @Mock
     private InspectionRepository inspectionRepository;
+    @Mock
+    private BatteryCellImageRepository batteryCellImageRepository;
     @Mock
     private InspectionImageRepository inspectionImageRepository;
     @Mock

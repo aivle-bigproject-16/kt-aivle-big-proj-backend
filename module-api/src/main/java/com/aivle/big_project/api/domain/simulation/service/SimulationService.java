@@ -286,14 +286,7 @@ public class SimulationService {
      * Captured -> Analyzing
      */
     public Optional<AnalysisProgress> startNextAnalysis(Long simulationRunId) {
-        boolean aiIsBusy =
-                inspectionRepository
-                        .existsByInspectionBatchSimulationRunIdAndStatus(
-                                simulationRunId,
-                                InspectionStatus.ANALYZING
-                        );
-
-        if (aiIsBusy) {
+        if (isAiBusy(simulationRunId)) {
             return Optional.empty();
         }
 
@@ -308,7 +301,56 @@ public class SimulationService {
             return Optional.empty();
         }
 
-        Inspection inspection = nextInspectionOptional.get();
+        return Optional.of(requestAnalysis(nextInspectionOptional.get()));
+    }
+
+    /**
+     * AI 실패 콜백이 커밋된 뒤 지정한 Inspection을 같은 이미지로 다시 요청합니다.
+     */
+    public Optional<AnalysisProgress> retryAnalysis(
+            Long simulationRunId,
+            Long inspectionId
+    ) {
+        if (isAiBusy(simulationRunId)) {
+            return Optional.empty();
+        }
+
+        Inspection inspection = inspectionRepository.findById(inspectionId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "AI 재분석할 검사를 찾을 수 없습니다."
+                ));
+
+        Long inspectionRunId = inspection.getInspectionBatch()
+                .getSimulationRun()
+                .getId();
+
+        if (!simulationRunId.equals(inspectionRunId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "요청한 SimulationRun의 검사가 아닙니다."
+            );
+        }
+
+        if (inspection.getStatus() != InspectionStatus.CAPTURED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "CAPTURED 상태의 검사만 AI 재분석할 수 있습니다."
+            );
+        }
+
+        return Optional.of(requestAnalysis(inspection));
+    }
+
+    private boolean isAiBusy(Long simulationRunId) {
+        return inspectionRepository
+                .existsByInspectionBatchSimulationRunIdAndStatus(
+                        simulationRunId,
+                        InspectionStatus.ANALYZING
+                );
+    }
+
+    private AnalysisProgress requestAnalysis(Inspection inspection) {
         InspectionBatch batch = inspection.getInspectionBatch();
 
         int attemptNo = inspection.currentAttemptNo();
@@ -398,7 +440,7 @@ public class SimulationService {
 
         publishSnapshot(snapshot);
 
-        return Optional.of(analyze);
+        return analyze;
     }
 
     /**

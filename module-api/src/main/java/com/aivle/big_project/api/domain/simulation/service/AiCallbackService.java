@@ -6,11 +6,13 @@ import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.SimulationE
 import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.SnapshotResponse;
 import com.aivle.big_project.domain.defect.DefectResult;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
+import com.aivle.big_project.domain.image.BatteryCellImageRepository;
 import com.aivle.big_project.domain.image.InspectionImage;
 import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.aivle.big_project.domain.inspection.*;
 import com.aivle.big_project.domain.inspection.InspectionFailureType;
 import com.aivle.big_project.domain.simulation.SimulationRun;
+import com.aivle.big_project.api.domain.simulation.event.InspectionAiRetryRequestedEvent;
 import com.aivle.big_project.api.domain.simulation.event.InspectionAnalysisCompletedEvent;
 import com.aivle.big_project.api.domain.simulation.event.InspectionRecaptureRequestedEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -32,6 +34,7 @@ import java.util.Optional;
 public class AiCallbackService {
 
     private final InspectionRepository inspectionRepository;
+    private final BatteryCellImageRepository batteryCellImageRepository;
     private final InspectionImageRepository inspectionImageRepository;
     private final DefectResultRepository defectResultRepository;
     private final SimulationSnapshotStore simulationSnapshotStore;
@@ -39,6 +42,7 @@ public class AiCallbackService {
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
     private static final int MAX_CAPTURE_RETRY_COUNT = 2;
+    private static final int MAX_AI_RETRY_COUNT = 2;
     private static final int MAX_FAILURE_REASON_LENGTH = 100;
 
     public AiServerDto.CallbackResponse handle(
@@ -115,10 +119,19 @@ public class AiCallbackService {
                 .getInspectionBatch()
                 .getSimulationRun();
 
-        // 촬영 실패이고 재촬영 횟수가 남아 있으면 최종 실패 처리하지 않음
-        if (failed
+        String finalFailureReason = summarizeFailureReason(
+                callback.failureReason()
+        );
+
+        boolean recaptureCandidate = failed
                 && failureType == InspectionFailureType.CAPTURE
-                && inspection.canRetryCapture(MAX_CAPTURE_RETRY_COUNT)) {
+                && inspection.canRetryCapture(MAX_CAPTURE_RETRY_COUNT);
+
+        boolean recaptureSourceAvailable = recaptureCandidate
+                && hasNextRecaptureSource(inspection);
+
+        // 촬영 실패이고 재촬영 횟수가 남아 있으면 최종 실패 처리하지 않음
+        if (recaptureCandidate && recaptureSourceAvailable) {
 
             inspection.prepareRecapture(
                     failureType,
@@ -154,6 +167,47 @@ public class AiCallbackService {
             );
         }
 
+        // AI 처리 실패이면 촬영 이미지는 유지하고 동일 Inspection만 다시 분석 요청
+        if (failed
+                && failureType == InspectionFailureType.AI
+                && inspection.canRetryAi(MAX_AI_RETRY_COUNT)) {
+
+            inspection.prepareAiRetry(
+                    failureType,
+                    finalFailureReason
+            );
+
+            publishAiRetrySnapshot(inspection);
+
+            applicationEventPublisher.publishEvent(
+                    new InspectionAiRetryRequestedEvent(
+                            simulationRun.getId(),
+                            inspection.getId()
+                    )
+            );
+
+            return new AiServerDto.CallbackResponse(
+                    true,
+                    callback.requestId(),
+                    callback.batchId(),
+                    callback.batteryCellId(),
+                    savedResultCount,
+                    false,
+                    "AI 실패 이력을 저장하고 재분석을 예약했습니다."
+            );
+        }
+
+        if (recaptureCandidate && !recaptureSourceAvailable) {
+            finalFailureReason = summarizeFailureReason(
+                    "재촬영 원본 이미지가 없습니다. batteryCellId=%d, imageType=%s, recaptureNo=%d"
+                            .formatted(
+                                    inspection.getBatteryCell().getId(),
+                                    inspection.getInspectionType().name(),
+                                    inspection.getCaptureRetryCount() + 1
+                            )
+            );
+        }
+
         // 여기부터는 성공 또는 최종 실패 처리
         InspectionStatus finalStatus = failed
                 ? InspectionStatus.FAILED
@@ -168,7 +222,7 @@ public class AiCallbackService {
                 finalLabel,
                 failed ? failureType : null,
                 failed
-                        ? summarizeFailureReason(callback.failureReason())
+                        ? finalFailureReason
                         : null
         );
 
@@ -209,6 +263,17 @@ public class AiCallbackService {
         );
     }
 
+    private boolean hasNextRecaptureSource(Inspection inspection) {
+        int nextRecaptureNo = inspection.getCaptureRetryCount() + 1;
+
+        return batteryCellImageRepository
+                .existsByBatteryCellIdAndImageTypeAndRecaptureNo(
+                        inspection.getBatteryCell().getId(),
+                        inspection.getInspectionType().name(),
+                        nextRecaptureNo
+                );
+    }
+
     @Transactional
     public void failStuckRecapture(
             Long inspectionId,
@@ -235,6 +300,59 @@ public class AiCallbackService {
                 InspectionStatus.FAILED,
                 FinalLabel.FAIL,
                 InspectionFailureType.CAPTURE,
+                summarizeFailureReason(failureReason)
+        );
+
+        InspectionBatch batch = inspection.getInspectionBatch();
+        SimulationRun simulationRun = batch.getSimulationRun();
+
+        completeBatchIfFinished(batch);
+        boolean simulationCompleted =
+                completeSimulationRunIfFinished(simulationRun);
+        Optional<CellProgress> completedCell =
+                completeCellIfFinished(inspection);
+
+        publishCompletedSnapshot(
+                inspection,
+                completedCell,
+                simulationCompleted
+        );
+
+        if (!simulationCompleted) {
+            applicationEventPublisher.publishEvent(
+                    new InspectionAnalysisCompletedEvent(
+                            simulationRun.getId()
+                    )
+            );
+        }
+    }
+
+    @Transactional
+    public void failStuckAiRetry(
+            Long inspectionId,
+            String failureReason
+    ) {
+        Inspection inspection = inspectionRepository.findById(inspectionId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "AI 재분석 고착 복구할 검사를 찾을 수 없습니다."
+                ));
+
+        if (isAlreadyProcessed(inspection)) {
+            return;
+        }
+
+        if (inspection.getStatus() != InspectionStatus.CAPTURED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "CAPTURED 상태의 검사만 AI 재분석 고착 복구할 수 있습니다."
+            );
+        }
+
+        inspection.completeAnalysis(
+                InspectionStatus.FAILED,
+                FinalLabel.FAIL,
+                InspectionFailureType.AI,
                 summarizeFailureReason(failureReason)
         );
 
@@ -712,6 +830,51 @@ public class AiCallbackService {
                 inspection.getInspectionBatch()
                         .getSimulationRun()
                         .getCaptureSpeed(),
+                current.registered(),
+                capture,
+                null,
+                current.completed()
+        );
+
+        simulationSnapshotStore.save(snapshot);
+        simulationEventPublisher.publish(snapshot);
+    }
+
+    private void publishAiRetrySnapshot(
+            Inspection inspection
+    ) {
+        SnapshotResponse current = simulationSnapshotStore.find()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "시뮬레이션 스냅샷이 없습니다."
+                ));
+
+        List<CellProgress> capture = new ArrayList<>(current.capture());
+
+        capture.removeIf(progress ->
+                progress.batteryCellId().equals(
+                        inspection.getBatteryCell().getId()
+                )
+                        && progress.batchId().equals(
+                        inspection.getInspectionBatch().getId()
+                )
+        );
+
+        capture.add(new CellProgress(
+                inspection.getBatteryCell().getId(),
+                inspection.getInspectionBatch().getId(),
+                InspectionBatchStatus.CAPTURED,
+                null
+        ));
+
+        SimulationRun simulationRun = inspection.getInspectionBatch()
+                .getSimulationRun();
+
+        SnapshotResponse snapshot = new SnapshotResponse(
+                SimulationEvent.PROGRESS,
+                simulationRun.getBatchCount(),
+                simulationRun.getBatteryCellCount(),
+                simulationRun.getCaptureSpeed(),
                 current.registered(),
                 capture,
                 null,

@@ -201,7 +201,8 @@ CREATE TABLE public.inspection (
     updated_at timestamp without time zone,
     point_groups jsonb DEFAULT '[]'::jsonb,
     ai_request_id character varying(100),
-    inspection_type character varying(20) NOT NULL
+    inspection_type character varying(20) NOT NULL,
+    ai_retry_count integer DEFAULT 0 NOT NULL
 );
 
 
