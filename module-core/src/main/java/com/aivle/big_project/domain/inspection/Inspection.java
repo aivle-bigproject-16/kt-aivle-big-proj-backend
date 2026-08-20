@@ -99,6 +99,9 @@ public class Inspection {
     @Column(name = "capture_retry_count", nullable = false)
     private int captureRetryCount = 0;
 
+    @Column(name = "ai_retry_count", nullable = false)
+    private int aiRetryCount = 0;
+
     public static Inspection create(
             InspectionBatch inspectionBatch,
             BatteryCell batteryCell,
@@ -155,12 +158,34 @@ public class Inspection {
         return captureRetryCount < maxRetryCount;
     }
 
+    public boolean canRetryAi(int maxRetryCount) {
+        return aiRetryCount < maxRetryCount;
+    }
+
     public void prepareRecapture(
             InspectionFailureType failureType,
             String failureReason
     ) {
         this.captureRetryCount++;
+        this.aiRetryCount = 0;
         this.status = InspectionStatus.CAPTURING;
+        this.failureType = failureType;
+        this.failureReason = summarizeFailureReason(failureReason);
+        this.finalLabel = null;
+        this.analyzedAt = null;
+        this.aiRequestId = null;
+    }
+
+    /**
+     * AI 처리 자체가 실패했을 때 현재 촬영 이미지를 그대로 다시 분석 대기 상태로 돌립니다.
+     * 촬영을 다시 하는 것이 아니므로 captureRetryCount와 이미지 attemptNo는 증가시키지 않습니다.
+     */
+    public void prepareAiRetry(
+            InspectionFailureType failureType,
+            String failureReason
+    ) {
+        this.aiRetryCount++;
+        this.status = InspectionStatus.CAPTURED;
         this.failureType = failureType;
         this.failureReason = summarizeFailureReason(failureReason);
         this.finalLabel = null;

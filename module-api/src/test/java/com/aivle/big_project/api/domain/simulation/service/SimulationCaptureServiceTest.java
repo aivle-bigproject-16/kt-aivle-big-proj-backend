@@ -1,5 +1,6 @@
 package com.aivle.big_project.api.domain.simulation.service;
 
+import com.aivle.big_project.api.domain.simulation.exception.RecaptureSourceNotFoundException;
 import com.aivle.big_project.domain.cell.BatteryCell;
 import com.aivle.big_project.domain.image.BatteryCellImage;
 import com.aivle.big_project.domain.image.BatteryCellImageRepository;
@@ -122,9 +123,9 @@ class SimulationCaptureServiceTest {
                 .thenReturn(List.of());
 
         assertThatThrownBy(() -> service.recapture(10L))
-                .isInstanceOf(ResponseStatusException.class)
+                .isInstanceOf(RecaptureSourceNotFoundException.class)
                 .hasMessageContaining(
-                        "RGB 촬영 이미지가 없습니다. batteryCellId=20, recaptureNo=1"
+                        "RGB 재촬영 원본 이미지가 없습니다. batteryCellId=20, recaptureNo=1"
                 );
 
         verify(batteryCellImageRepository, never())

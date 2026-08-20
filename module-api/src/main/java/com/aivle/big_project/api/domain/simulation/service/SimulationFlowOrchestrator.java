@@ -1,7 +1,9 @@
 package com.aivle.big_project.api.domain.simulation.service;
 
 import com.aivle.big_project.api.domain.simulation.event.InspectionAnalysisCompletedEvent;
+import com.aivle.big_project.api.domain.simulation.event.InspectionAiRetryRequestedEvent;
 import com.aivle.big_project.api.domain.simulation.event.SimulationStartedEvent;
+import com.aivle.big_project.api.domain.simulation.exception.RecaptureSourceNotFoundException;
 import com.aivle.big_project.domain.inspection.InspectionBatch;
 import com.aivle.big_project.domain.inspection.InspectionBatchRepository;
 import com.aivle.big_project.api.domain.simulation.event.InspectionRecaptureRequestedEvent;
@@ -24,6 +26,7 @@ public class SimulationFlowOrchestrator {
     private static final int MAX_BATCH_CAPTURE_ATTEMPTS = 3;
     private static final int MIN_CAPTURE_RETRY_DELAY_SECONDS = 3;
     private static final int MAX_RECAPTURE_TASK_ATTEMPTS = 3;
+    private static final int MAX_AI_RETRY_TASK_ATTEMPTS = 3;
 
     private final SimulationService simulationService;
     private final InspectionBatchRepository inspectionBatchRepository;
@@ -74,6 +77,73 @@ public class SimulationFlowOrchestrator {
         scheduleRecapture(event, 1, event.captureSpeed());
     }
 
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleInspectionAiRetryRequested(
+            InspectionAiRetryRequestedEvent event
+    ) {
+        scheduleAiRetry(event, 1, 1L);
+    }
+
+    private void scheduleAiRetry(
+            InspectionAiRetryRequestedEvent event,
+            int attempt,
+            long delaySeconds
+    ) {
+        simulationTaskScheduler.schedule(
+                () -> {
+                    try {
+                        log.info(
+                                "AI 재분석 요청 시작. inspectionId={}, runId={}, dispatchAttempt={}/{}",
+                                event.inspectionId(),
+                                event.simulationRunId(),
+                                attempt,
+                                MAX_AI_RETRY_TASK_ATTEMPTS
+                        );
+
+                        boolean requested = simulationService.retryAnalysis(
+                                event.simulationRunId(),
+                                event.inspectionId()
+                        ).isPresent();
+
+                        if (!requested) {
+                            throw new IllegalStateException(
+                                    "다른 Inspection을 분석 중이어서 AI 재분석을 시작하지 못했습니다."
+                            );
+                        }
+                    } catch (Exception exception) {
+                        log.error(
+                                "AI 재분석 요청 실패. inspectionId={}, runId={}, dispatchAttempt={}/{}",
+                                event.inspectionId(),
+                                event.simulationRunId(),
+                                attempt,
+                                MAX_AI_RETRY_TASK_ATTEMPTS,
+                                exception
+                        );
+
+                        if (attempt < MAX_AI_RETRY_TASK_ATTEMPTS) {
+                            scheduleAiRetry(
+                                    event,
+                                    attempt + 1,
+                                    Math.min(1L << attempt, 30L)
+                            );
+                            return;
+                        }
+
+                        aiCallbackService.failStuckAiRetry(
+                                event.inspectionId(),
+                                "AI 재분석 요청이 %d회 실패했습니다: %s: %s"
+                                        .formatted(
+                                                MAX_AI_RETRY_TASK_ATTEMPTS,
+                                                exception.getClass().getSimpleName(),
+                                                exception.getMessage()
+                                        )
+                        );
+                    }
+                },
+                Instant.now().plusSeconds(delaySeconds)
+        );
+    }
+
     private void scheduleRecapture(
             InspectionRecaptureRequestedEvent event,
             int attempt,
@@ -105,6 +175,18 @@ public class SimulationFlowOrchestrator {
 
                         simulationService.startNextAnalysis(
                                 event.simulationRunId()
+                        );
+                    } catch (RecaptureSourceNotFoundException exception) {
+                        log.error(
+                                "재촬영 원본이 없어 최종 실패 처리합니다. inspectionId={}, runId={}",
+                                event.inspectionId(),
+                                event.simulationRunId(),
+                                exception
+                        );
+
+                        aiCallbackService.failStuckRecapture(
+                                event.inspectionId(),
+                                exception.getMessage()
                         );
                     } catch (Exception exception) {
                         log.error(

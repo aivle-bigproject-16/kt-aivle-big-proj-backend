@@ -1,9 +1,13 @@
 package com.aivle.big_project.api.domain.simulation.service;
 
 import com.aivle.big_project.api.domain.simulation.client.dto.AiServerDto;
+import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.SimulationEvent;
+import com.aivle.big_project.api.domain.simulation.dto.SimulationDto.SnapshotResponse;
+import com.aivle.big_project.api.domain.simulation.event.InspectionAiRetryRequestedEvent;
 import com.aivle.big_project.domain.cell.BatteryCell;
 import com.aivle.big_project.domain.defect.DefectResult;
 import com.aivle.big_project.domain.defect.DefectResultRepository;
+import com.aivle.big_project.domain.image.BatteryCellImageRepository;
 import com.aivle.big_project.domain.image.InspectionImageRepository;
 import com.aivle.big_project.domain.inspection.FinalLabel;
 import com.aivle.big_project.domain.inspection.Inspection;
@@ -40,6 +44,9 @@ class AiCallbackServiceTest {
     private InspectionRepository inspectionRepository;
 
     @Mock
+    private BatteryCellImageRepository batteryCellImageRepository;
+
+    @Mock
     private InspectionImageRepository inspectionImageRepository;
 
     @Mock
@@ -72,6 +79,7 @@ class AiCallbackServiceTest {
     void setUp() {
         service = new AiCallbackService(
                 inspectionRepository,
+                batteryCellImageRepository,
                 inspectionImageRepository,
                 defectResultRepository,
                 simulationSnapshotStore,
@@ -152,5 +160,69 @@ class AiCallbackServiceTest {
                 InspectionFailureType.AI,
                 failureReason.substring(0, 100)
         );
+    }
+
+    @Test
+    void AI_실패이고_재시도_횟수가_남으면_같은_검사의_재분석을_예약한다() {
+        String requestId = "first-ai-request";
+        AiServerDto.CellAnalysisCallbackRequest callback =
+                new AiServerDto.CellAnalysisCallbackRequest(
+                        requestId,
+                        31L,
+                        11L,
+                        21L,
+                        "CELL-0001",
+                        "FAILED",
+                        null,
+                        "AI",
+                        "MODEL_INFERENCE_ERROR",
+                        BigDecimal.ZERO,
+                        Instant.parse("2026-08-20T00:00:00Z"),
+                        List.of()
+                );
+
+        SnapshotResponse current = new SnapshotResponse(
+                SimulationEvent.PROGRESS,
+                1,
+                1,
+                3,
+                List.of(),
+                List.of(),
+                null,
+                List.of()
+        );
+
+        when(inspectionRepository.findByAiRequestId(requestId))
+                .thenReturn(Optional.of(inspection));
+        when(inspection.getId()).thenReturn(11L);
+        when(inspection.getBatteryCell()).thenReturn(batteryCell);
+        when(batteryCell.getId()).thenReturn(21L);
+        when(inspection.getStatus()).thenReturn(InspectionStatus.ANALYZING);
+        when(inspection.getInspectionType()).thenReturn(InspectionType.CT);
+        when(inspection.currentAttemptNo()).thenReturn(1);
+        when(inspection.getInspectionBatch()).thenReturn(inspectionBatch);
+        when(inspectionBatch.getId()).thenReturn(31L);
+        when(inspectionBatch.getSimulationRun()).thenReturn(simulationRun);
+        when(simulationRun.getId()).thenReturn(41L);
+        when(simulationRun.getBatchCount()).thenReturn(1);
+        when(simulationRun.getBatteryCellCount()).thenReturn(1);
+        when(simulationRun.getCaptureSpeed()).thenReturn(3);
+        when(inspection.canRetryAi(2)).thenReturn(true);
+        when(simulationSnapshotStore.find()).thenReturn(Optional.of(current));
+
+        AiServerDto.CallbackResponse response = service.handle(callback);
+
+        verify(inspection).prepareAiRetry(
+                InspectionFailureType.AI,
+                "MODEL_INFERENCE_ERROR"
+        );
+
+        ArgumentCaptor<InspectionAiRetryRequestedEvent> eventCaptor =
+                ArgumentCaptor.forClass(InspectionAiRetryRequestedEvent.class);
+        verify(applicationEventPublisher).publishEvent(eventCaptor.capture());
+
+        assertThat(eventCaptor.getValue().simulationRunId()).isEqualTo(41L);
+        assertThat(eventCaptor.getValue().inspectionId()).isEqualTo(11L);
+        assertThat(response.message()).contains("재분석");
     }
 }

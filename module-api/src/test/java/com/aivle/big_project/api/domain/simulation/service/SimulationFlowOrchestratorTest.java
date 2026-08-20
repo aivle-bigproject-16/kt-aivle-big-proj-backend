@@ -1,6 +1,8 @@
 package com.aivle.big_project.api.domain.simulation.service;
 
+import com.aivle.big_project.api.domain.simulation.event.InspectionRecaptureRequestedEvent;
 import com.aivle.big_project.api.domain.simulation.event.SimulationStartedEvent;
+import com.aivle.big_project.api.domain.simulation.exception.RecaptureSourceNotFoundException;
 import com.aivle.big_project.domain.inspection.InspectionBatch;
 import com.aivle.big_project.domain.inspection.InspectionBatchRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -125,6 +127,36 @@ class SimulationFlowOrchestratorTest {
         verify(simulationCaptureService, org.mockito.Mockito.times(3)).capture(batchId);
         verify(simulationService, never()).completeBatchCapture(batchId);
         verify(simulationService, never()).startNextAnalysis(simulationRunId);
+        assertThat(scheduledTasks).isEmpty();
+    }
+
+    @Test
+    void missingRecaptureSourceFailsImmediatelyWithoutRetry() {
+        Long simulationRunId = 3L;
+        Long inspectionId = 30L;
+
+        doThrow(new RecaptureSourceNotFoundException(
+                "RGB 재촬영 원본 이미지가 없습니다."
+        )).when(simulationCaptureService).recapture(inspectionId);
+
+        orchestrator.handleInspectionRecaptureRequested(
+                new InspectionRecaptureRequestedEvent(
+                        simulationRunId,
+                        inspectionId,
+                        5
+                )
+        );
+
+        assertThat(scheduledTasks).hasSize(1);
+        runNextScheduledTask();
+
+        verify(simulationCaptureService).recapture(inspectionId);
+        verify(aiCallbackService).failStuckRecapture(
+                inspectionId,
+                "RGB 재촬영 원본 이미지가 없습니다."
+        );
+        verify(simulationService, never())
+                .completeInspectionRecapture(inspectionId);
         assertThat(scheduledTasks).isEmpty();
     }
 
