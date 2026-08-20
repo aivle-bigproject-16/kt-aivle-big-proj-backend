@@ -42,7 +42,8 @@ public class BatteryCellService {
     private final S3ImageUrlService s3ImageUrlService;
 
     public PagedResponse<BatteryCellListResponse> getBatteryCells(Pageable pageable) {
-        Page<BatteryCell> cells = batteryCellRepository.findAll(pageable);
+        Page<BatteryCell> cells =
+                batteryCellRepository.findAllWithInspectionResult(pageable);
         List<Long> batteryCellIds = cells.stream()
                 .map(BatteryCell::getId)
                 .toList();
